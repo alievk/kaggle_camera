@@ -10,7 +10,8 @@ from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-from augmentations import CenterCrop
+import augmentations as aug
+from augmentations import CenterCrop, RandomManipulation
 
 
 DATA_ROOT = Path('data')
@@ -20,32 +21,6 @@ VALID_SET = SETS_ROOT / 'valid.csv'
 
 NUM_CLASSES = 10
 INPUT_SIZE = 112
-
-
-MANIPULATIONS = ['jpg70', 'jpg90', 'gamma0.8', 'gamma1.2', 'bicubic0.5', 'bicubic0.8', 'bicubic1.5', 'bicubic2.0']
-
-
-def manipulation(img, manip):
-    if not isinstance(img, np.ndarray):
-        img = np.array(img)
-    if manip.startswith('bicubic'):
-        scale = float(manip[7:])
-        img_manip = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    elif manip.startswith('gamma'):
-        gamma = float(manip[5:])
-        img_manip = np.uint8(cv2.pow(img / 255., gamma) * 255.)
-    elif manip.startswith('jpg'):
-        quality = int(manip[3:])
-        _, buf = cv2.imencode('.jpeg', img, [cv2.IMWRITE_JPEG_QUALITY, quality])
-        img_manip = cv2.imdecode(buf, -1)
-    else:
-        raise ValueError
-    return img_manip
-
-
-def random_manipulation(img):
-    manip = np.random.choice(MANIPULATIONS)  # type: str
-    return manipulation(img, manip), manip
 
 
 def pil_loader(path):
@@ -104,7 +79,7 @@ class CSVDataset(Dataset):
         manip = None
         if self.do_manip:
             manip_s = time()
-            img, manip = random_manipulation(img)
+            img, manip = RandomManipulation()(img)
             self.stats['manip'].append(time() - manip_s)
 
         if self.transform:
@@ -115,7 +90,7 @@ class CSVDataset(Dataset):
         self.update_stats()
 
         if manip:
-            return img, target, MANIPULATIONS.index(manip)
+            return img, target, aug.MANIPULATIONS.index(manip)
         return img, target
 
     def __len__(self):

@@ -1,10 +1,16 @@
+import collections
+from time import time
 from pathlib import Path
 
+import numpy as np
+import cv2
 import pandas as pd
 from PIL import Image
 
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
+
+from augmentations import CenterCrop
 
 
 DATA_ROOT = Path('data')
@@ -16,20 +22,30 @@ NUM_CLASSES = 10
 INPUT_SIZE = 112
 
 
-img_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+MANIPULATIONS = ['jpg70', 'jpg90', 'gamma0.8', 'gamma1.2', 'bicubic0.5', 'bicubic0.8', 'bicubic1.5', 'bicubic2.0']
 
-train_transform = transforms.Compose([
-    transforms.CenterCrop(INPUT_SIZE),
-    img_transform
-])
 
-valid_transform = transforms.Compose([
-    transforms.CenterCrop(INPUT_SIZE),
-    img_transform
-])
+def manipulation(img, manip):
+    if not isinstance(img, np.ndarray):
+        img = np.array(img)
+    if manip.startswith('bicubic'):
+        scale = float(manip[7:])
+        img_manip = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    elif manip.startswith('gamma'):
+        gamma = float(manip[5:])
+        img_manip = np.uint8(cv2.pow(img / 255., gamma) * 255.)
+    elif manip.startswith('jpg'):
+        quality = int(manip[3:])
+        _, buf = cv2.imencode('.jpeg', img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        img_manip = cv2.imdecode(buf, -1)
+    else:
+        raise ValueError
+    return img_manip
+
+
+def random_manipulation(img):
+    manip = np.random.choice(MANIPULATIONS)  # type: str
+    return manipulation(img, manip), manip
 
 
 def pil_loader(path):
@@ -39,8 +55,26 @@ def pil_loader(path):
             return img.convert('RGB')
 
 
+def opencv_loader(path):
+    img = cv2.imread(path)
+    assert img is not None, 'Image is not loaded'
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
+
+
+minimal_transform = transforms.Compose([
+    CenterCrop(INPUT_SIZE),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+
+train_valid_transform = transforms.Compose([
+    minimal_transform
+])
+
+
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=img_transform, loader=pil_loader):
+    def __init__(self, csv_path, transform=minimal_transform, do_manip=True, loader=opencv_loader, stats_fq=0):
         df = pd.read_csv(csv_path)
         classes = df.columns
         class_to_idx = dict(zip(classes, range(len(classes))))
@@ -51,17 +85,54 @@ class CSVDataset(Dataset):
         assert (len(samples) == df.shape[0] * df.shape[1])
 
         self.transform = transform
+        self.do_manip = do_manip
         self.loader = loader
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.samples = samples
 
+        self.stats = collections.defaultdict(list)
+        self.stats_fq = stats_fq
+        self.stats_update_cnt = 0
+
     def __getitem__(self, index):
         path, target = self.samples[index]
+        load_s = time()
         img = self.loader(path)
-        img = self.transform(img)
+        self.stats['loader'].append(time() - load_s)
 
+        manip = None
+        if self.do_manip:
+            manip_s = time()
+            img, manip = random_manipulation(img)
+            self.stats['manip'].append(time() - manip_s)
+
+        if self.transform:
+            tform_s = time()
+            img = self.transform(img)
+            self.stats['tform'].append(time() - tform_s)
+
+        self.update_stats()
+
+        if manip:
+            return img, target, MANIPULATIONS.index(manip)
         return img, target
 
     def __len__(self):
         return len(self.samples)
+
+    def update_stats(self):
+        if self.stats_fq > 0:
+            if self.stats_update_cnt and self.stats_update_cnt % self.stats_fq == 0:
+                total = 0
+                print('===Dataset performance===')
+                for k, v in self.stats.items():
+                    t = np.mean(v)
+                    total += t
+                    print('{}:\t{:.6f}'.format(k, t))
+                print('total:\t{:.6f}'.format(total))
+                self.stats = collections.defaultdict(list)
+        else:
+            self.stats = collections.defaultdict(list)
+
+        self.stats_update_cnt += 1

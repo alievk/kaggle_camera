@@ -49,7 +49,8 @@ train_valid_transform = transforms.Compose([
 
 
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=minimal_transform, do_manip=True, loader=opencv_loader, stats_fq=0):
+    def __init__(self, csv_path, transform=minimal_transform, do_manip=True, loader=opencv_loader, stats_fq=0,
+                 fix_path=None):
         df = pd.read_csv(csv_path)
         classes = df.columns
         class_to_idx = dict(zip(classes, range(len(classes))))
@@ -70,8 +71,13 @@ class CSVDataset(Dataset):
         self.stats_fq = stats_fq
         self.stats_update_cnt = 0
 
+        self.fix_path = fix_path
+
     def __getitem__(self, index):
         path, target = self.samples[index]
+        if self.fix_path:
+            path = self.fix_path(path)
+
         load_s = time()
         img = self.loader(path)
         self.stats['loader'].append(time() - load_s)

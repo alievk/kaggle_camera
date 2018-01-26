@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime
 
 import numpy as np
+import tqdm
 
 import torch
 import torch.nn as N
@@ -36,9 +37,9 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
     criterion = kwargs['criterion']
     n_epochs = n_epochs or args.epochs
 
-    output_dir = Path(args.output_dir)
-    model_path = output_dir / 'model.pt'
-    best_model_path = output_dir / 'best-model.pt'
+    run_dir = Path(args.run_dir)
+    model_path = run_dir / 'model.pt'
+    best_model_path = run_dir / 'best-model.pt'
     if model_path.exists():
         state = torch.load(str(model_path))
         epoch = state['epoch'] + 1
@@ -64,7 +65,7 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
     batch_time = utils.AverageMeter()
     data_time = utils.AverageMeter()
     loss_avg = utils.AverageMeter()
-    log = output_dir.joinpath('train.log').open('at', encoding='utf8')
+    log = run_dir.joinpath('train.log').open('at', encoding='utf8')
     valid_losses = []
     lr_reset_epoch = epoch
     lr_changes = 0
@@ -111,8 +112,6 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
             write_event(log, step, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
             valid_losses.append(valid_loss)
-            print('Validation loss {m[valid_loss]:.4f}\t'
-                  'Score {m[score]:.4f}'.format(m=valid_metrics))
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
                 shutil.copy(str(model_path), str(best_model_path))
@@ -141,7 +140,7 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
     losses = []
     targets = []
     outputs = []
-    for input, target in loader:
+    for input, target, manip in loader:
         input_var = Variable(input, volatile=True).cuda()
         target_var = Variable(target).cuda()
 
@@ -156,33 +155,39 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
 
     loss = np.mean(losses)
     accuracy = np.mean(np.array(outputs) == np.array(targets))
+    print('Validation loss {:.4f}\t'
+          'Accuracy {:.4f}'.format(loss, accuracy))
     return {'valid_loss': loss, 'score': accuracy}
 
 
 def add_arguments(parser: argparse.ArgumentParser):
     arg = parser.add_argument
+    arg('--mode', choices=['train', 'valid', 'predict_valid', 'predict_test'], default='train')
     arg('-j', '--workers', default=8, type=int, metavar='N', help='number of data loading workers')
     arg('-b', '--batch-size', default=32, type=int, metavar='N', help='mini-batch size')
     arg('-p', '--print_freq', default=10, type=int, metavar='N', help='print frequency')
     arg('--lr', '--learning-rate', default=0.0002, type=float, metavar='LR', help='initial learning rate')
-    arg('-o', '--output-dir', required=True, metavar='', help='output directory with model checkpoints, logs, etc.')
+    arg('-r', '--run-dir', required=True, metavar='DIR', help='directory with model checkpoints, logs, etc.')
     arg('--clean', action='store_true', help='clean the output directory')
     arg('--patience', default=4, type=int, metavar='N',
         help='number of epochs without validation loss improvement to tolerate')
     arg('--epochs', default=100, type=int, metavar='N', help='number of training epochs')
+    arg('--checkpoint', choices=['best', 'last'], default='last',
+        help='whether to use the best or the last model checkpoint for inference')
 
 
 def main():
     parser = argparse.ArgumentParser()
     add_arguments(parser)
     args = parser.parse_args()
+    run_dir = Path(args.run_dir)
 
     assert torch.cuda.is_available(), 'CUDA is not available'
 
     train_dataset = dataset.CSVDataset(dataset.TRAIN_SET, transform=dataset.train_valid_transform,
                                        do_manip=False, fix_path=utils.fix_jpg_tif)
     valid_dataset = dataset.CSVDataset(dataset.VALID_SET, transform=dataset.train_valid_transform,
-                                       do_manip=False, fix_path=utils.fix_jpg_tif)
+                                       do_manip=True, fix_path=utils.fix_jpg_tif)
 
     train_loader = D.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -198,29 +203,37 @@ def main():
 
     loss = N.CrossEntropyLoss()
 
-    output_dir = Path(args.output_dir)
-    if output_dir.exists() and args.clean:
-        shutil.rmtree(str(output_dir))
-    output_dir.mkdir(exist_ok=True)
-    output_dir.joinpath('params.json').write_text(
-        json.dumps(vars(args), indent=True, sort_keys=True))
-
-    train_kwargs = {
-        'args': args,
-        'train_loader': train_loader,
-        'valid_loader': valid_loader,
-        'model': model,
-        'criterion': loss,
-    }
-
-    train(
-        init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
-        n_epochs=1,
-        **train_kwargs)
-
-    train(
-        init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),
-        **train_kwargs)
+    if 'train' == args.mode:
+        if run_dir.exists() and args.clean:
+            shutil.rmtree(str(run_dir))
+        run_dir.mkdir(exist_ok=True)
+        run_dir.joinpath('params.json').write_text(
+            json.dumps(vars(args), indent=True, sort_keys=True))
+        train_kwargs = {
+            'args': args,
+            'train_loader': train_loader,
+            'valid_loader': valid_loader,
+            'model': model,
+            'criterion': loss,
+        }
+        train(
+            init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
+            n_epochs=1,
+            **train_kwargs)
+        train(
+            init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),
+            **train_kwargs)
+    elif 'valid' == args.mode:
+        if 'best' == args.checkpoint:
+            ckpt = (run_dir / 'best-model.pt')
+        else:
+            ckpt = (run_dir / 'model.pt')
+        state = torch.load(str(ckpt))
+        model.load_state_dict(state['model'])
+        print('Validating {}'.format(ckpt))
+        validation(tqdm.tqdm(valid_loader, desc='Validation'), model, loss)
+    else:
+        raise ValueError('Unknown mode {}'.format(args.mode))
 
 if '__main__' == __name__:
     main()

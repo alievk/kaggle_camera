@@ -22,7 +22,7 @@ class CenterCrop:
         th, tw = self.size
         x1 = int(round((w - tw) / 2.))
         y1 = int(round((h - th) / 2.))
-        return img[y1:y1 + th, x1:x1 + th, :].astype(np.uint8)
+        return img[y1:y1 + th, x1:x1 + tw, :].astype(np.uint8)
 
 
 MANIPULATIONS = ['jpg70', 'jpg90', 'gamma0.8', 'gamma1.2', 'bicubic0.5', 'bicubic0.8', 'bicubic1.5', 'bicubic2.0']

@@ -135,10 +135,10 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
 
 
 def validation(loader: D.DataLoader, model: N.Module, criterion):
-    # TODO: предусмотреть unmanip/manip примеры в скоре
     model.eval()
     losses = []
     targets = []
+    manips = []
     outputs = []
     for input, target, manip in loader:
         input_var = Variable(input, volatile=True).cuda()
@@ -150,14 +150,21 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
 
         output_data = output.data.cpu().numpy().argmax(axis=1)
         target_data = target.cpu().numpy()
+        manip_data = manip.cpu().numpy()
         outputs.extend(list(output_data))
         targets.extend(list(target_data))
+        manips.extend(list(manip_data))
 
     loss = np.mean(losses)
-    accuracy = np.mean(np.array(outputs) == np.array(targets))
+    unmanip_mask = np.array(manips) == -1
+    matches = np.array(outputs) == np.array(targets)
+    accuracy_unmanip = np.mean(matches[unmanip_mask])
+    accuracy_manip = np.mean(matches[~unmanip_mask])
+    accuracy_weighted = 0.7 * accuracy_unmanip + 0.3 * accuracy_manip
     print('Validation loss {:.4f}\t'
-          'Accuracy {:.4f}'.format(loss, accuracy))
-    return {'valid_loss': loss, 'score': accuracy}
+          'Accuracy unmanip {:.4f}\tmanip {:.4f}\tweighted: {:.4f}'.format(
+        loss, accuracy_unmanip, accuracy_manip, accuracy_weighted))
+    return {'valid_loss': loss, 'score': accuracy_weighted}
 
 
 def add_arguments(parser: argparse.ArgumentParser):

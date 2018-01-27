@@ -1,6 +1,7 @@
 import collections
 from time import time
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import cv2
@@ -49,8 +50,8 @@ train_valid_transform = transforms.Compose([
 
 
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=minimal_transform, do_manip=True, loader=opencv_loader, stats_fq=0,
-                 fix_path=None):
+    def __init__(self, csv_path, transform=minimal_transform, do_manip=False, manip_prob: float=0.5,
+                 loader: Callable=opencv_loader, stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
         classes = df.columns
         class_to_idx = dict(zip(classes, range(len(classes))))
@@ -62,6 +63,7 @@ class CSVDataset(Dataset):
 
         self.transform = transform
         self.do_manip = do_manip
+        self.manip_prob = manip_prob
         self.loader = loader
         self.classes = classes
         self.class_to_idx = class_to_idx
@@ -82,11 +84,12 @@ class CSVDataset(Dataset):
         img = self.loader(path)
         self.stats['loader'].append(time() - load_s)
 
-        manip = None
-        if self.do_manip:
+        manip = -1
+        if self.do_manip and np.random.rand() < self.manip_prob:
             manip_s = time()
-            img, manip = RandomManipulation()(img)
+            img, manip_name = RandomManipulation()(img)
             self.stats['manip'].append(time() - manip_s)
+            manip = aug.MANIPULATIONS.index(manip_name)
 
         if self.transform:
             tform_s = time()
@@ -95,8 +98,8 @@ class CSVDataset(Dataset):
 
         self.update_stats()
 
-        if manip:
-            return img, target, aug.MANIPULATIONS.index(manip)
+        if self.do_manip:
+            return img, target, manip
         return img, target
 
     def __len__(self):

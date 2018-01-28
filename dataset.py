@@ -21,10 +21,16 @@ TRAIN_SET = SETS_ROOT / 'train.csv'
 VALID_SET = SETS_ROOT / 'valid.csv'
 FLICKR_TRAIN_SET = SETS_ROOT / 'flickr_train.csv'
 FLICKR_VALID_SET = SETS_ROOT / 'flickr_valid.csv'
+TRAINVAL_DIR = DATA_ROOT / 'train'
 TEST_DIR = DATA_ROOT / 'test'
+FLICKR_DIR = DATA_ROOT / 'external/flickr_images'
 
 CLASSES = ['HTC-1-M7', 'LG-Nexus-5x', 'Motorola-Droid-Maxx', 'Motorola-Nexus-6', 'Motorola-X',
            'Samsung-Galaxy-Note3', 'Samsung-Galaxy-S4', 'Sony-NEX-7', 'iPhone-4s', 'iPhone-6']
+FLICKR_NAME_MAP = {'htc_m7': 'HTC-1-M7', 'nexus_5x': 'LG-Nexus-5x', 'moto_maxx': 'Motorola-Droid-Maxx',
+                   'nexus_6': 'Motorola-Nexus-6', 'moto_x': 'Motorola-X', 'samsung_note3': 'Samsung-Galaxy-Note3',
+                   'samsung_s4': 'Samsung-Galaxy-S4', 'sony_nex7': 'Sony-NEX-7', 'iphone_4s': 'iPhone-4s',
+                   'iphone_6': 'iPhone-6'}
 NUM_CLASSES = len(CLASSES)
 CLASS_TO_IDX = dict(zip(CLASSES, range(NUM_CLASSES)))
 IDX_TO_CLASS = dict(zip(range(NUM_CLASSES), CLASSES))
@@ -67,11 +73,18 @@ class CSVDataset(Dataset):
     def __init__(self, csv_path, transform=minimal_transform, do_manip=False, manip_prob: float=0.5,
                  loader: Callable=opencv_loader, stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
+        paths = df['fname']
+        is_flickr = 'flickr' in Path(csv_path).stem
+        has_manip = 'manip' in df.columns
         samples = []
-        for cls in CLASSES:
-            paths = df[cls].tolist()
-            samples.extend(zip(paths, [CLASS_TO_IDX[cls]] * len(paths)))
-        assert (len(samples) == df.shape[0] * df.shape[1])
+        for i, path in enumerate(paths):
+            full_path = Path(TRAINVAL_DIR / path) if not is_flickr else Path(FLICKR_DIR) / path
+            model = Path(path).parts[0]
+            target = CLASS_TO_IDX[model] if not is_flickr else CLASS_TO_IDX[FLICKR_NAME_MAP[model]]
+            item = {'path': str(full_path), 'target': target}
+            if has_manip:
+                item['manip'] = df.iloc[i]['manip']
+            samples.append(item)
 
         self.transform = transform
         self.do_manip = do_manip
@@ -86,7 +99,8 @@ class CSVDataset(Dataset):
         self.fix_path = fix_path
 
     def __getitem__(self, index):
-        path, target = self.samples[index]
+        item = self.samples[index]
+        path, target = item['path'], item['target']
         if self.fix_path:
             path = self.fix_path(path)
 
@@ -95,7 +109,10 @@ class CSVDataset(Dataset):
         self.stats['loader'].append(time() - load_s)
 
         manip = -1
-        if self.do_manip and np.random.rand() < self.manip_prob:
+        if 'manip' in item and item['manip'] == 1:
+            # actually, the jpg quality ranges between 80-93, but we don't care about it right now
+            manip = aug.MANIPULATIONS.index('jpg90')
+        elif self.do_manip and np.random.rand() < self.manip_prob:
             manip_s = time()
             img, manip_name = RandomManipulation()(img)
             self.stats['manip'].append(time() - manip_s)
@@ -108,9 +125,7 @@ class CSVDataset(Dataset):
 
         self.update_stats()
 
-        if self.do_manip:
-            return img, target, manip
-        return img, target
+        return img, target, manip
 
     def __len__(self):
         return len(self.samples)

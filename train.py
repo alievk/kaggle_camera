@@ -77,7 +77,7 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
         random.seed()
         try:
             end = time.time()
-            for i, (input, target) in enumerate(train_loader):
+            for i, (input, target, manip) in enumerate(train_loader):
                 # measure data loading time
                 if i > 0:  # first iteration is always slow
                     data_time.update(time.time() - end)
@@ -193,8 +193,11 @@ def save_predictions(preds, paths, args):
         names.append(name)
 
     run_dir = Path(args.run_dir)
-    csv_path = run_dir / (args.mode + '.csv')
-    infer_path = run_dir / (args.mode + '_detailed.pkl')
+    out_dir = Path('output') / run_dir.relative_to('.')
+    if not out_dir.exists():
+        os.makedirs(str(out_dir))
+    csv_path = out_dir / (args.mode + '.csv')
+    infer_path = out_dir / (args.mode + '_detailed.pkl')
     pd.DataFrame({'fname': names, 'camera': preds_cls}, columns=['fname', 'camera']).to_csv(str(csv_path), index=False)
     pickle.dump((preds, paths), open(str(infer_path), 'wb'))
 
@@ -228,7 +231,7 @@ def main():
     valid_dataset = dataset.CSVDataset(dataset.VALID_SET, transform=dataset.train_valid_transform,
                                        do_manip=True, fix_path=utils.fix_jpg_tif)
     valid_dataset_flickr = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=dataset.train_valid_transform,
-                                       do_manip=True)
+                                              do_manip=True)
     valid_dataset_comb = D.ConcatDataset([valid_dataset, valid_dataset_flickr])
     test_dataset = dataset.TestDataset()
 

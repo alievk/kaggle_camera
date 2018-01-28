@@ -70,6 +70,7 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
     valid_losses = []
     lr_reset_epoch = epoch
     lr_changes = 0
+    write_event(log, step, lr=lr)
     for epoch in range(epoch, n_epochs):
         print('Epoch {}/{}\t'
               'learning rate {}'.format(epoch + 1, n_epochs, lr))
@@ -101,8 +102,9 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
                     write_event(log, step, loss=loss_avg.avg)
                     print('\tTime {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                           'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
-                           batch_time=batch_time, data_time=data_time, loss=loss_avg))
+                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                          'Step {st}'.format(
+                           batch_time=batch_time, data_time=data_time, loss=loss_avg, st=step))
 
                 step += 1
 
@@ -265,7 +267,7 @@ def main():
         }
         train(
             init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
-            n_epochs=1,
+            n_epochs=3,
             **train_kwargs)
         train(
             init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),

@@ -267,7 +267,7 @@ def main():
         }
         train(
             init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
-            n_epochs=3,
+            n_epochs=1,
             **train_kwargs)
         train(
             init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),

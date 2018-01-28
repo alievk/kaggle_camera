@@ -46,19 +46,26 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
         epoch = state['epoch'] + 1
         step = state['step']
         best_valid_loss = state['best_valid_loss']
+        best_score = state['best_score']
         model.load_state_dict(state['model'])
         print('Restored model, epoch {}, step {:,}'.format(epoch, step))
     else:
         epoch = 0
         step = 0
         best_valid_loss = float('inf')
+        best_score = 0.
 
     save_checkpoint = lambda ep: torch.save({
         'model': model.state_dict(),
         'epoch': ep,
         'step': step,
-        'best_valid_loss': best_valid_loss
+        'best_valid_loss': best_valid_loss,
+        'best_score': best_score
     }, str(model_path))
+
+    def save_best_checkpoint():
+        print('Saving best checkpoint')
+        shutil.copy(str(model_path), str(best_model_path))
 
     lr = args.lr
     optimizer = init_optimizer(lr)
@@ -115,9 +122,14 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
             write_event(log, step, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
             valid_losses.append(valid_loss)
+            if valid_metrics['score'] > best_score:
+                best_score = valid_metrics['score']
+                if args.best_checkpoint_metric == 'score':
+                    save_best_checkpoint()
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
-                shutil.copy(str(model_path), str(best_model_path))
+                if args.best_checkpoint_metric == 'valid_loss':
+                    save_best_checkpoint()
             elif (patience and epoch - lr_reset_epoch > patience and
                   min(valid_losses[-patience:]) > best_valid_loss):
                 lr_changes += 1
@@ -218,6 +230,8 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('--epochs', default=100, type=int, metavar='N', help='number of training epochs')
     arg('--checkpoint', choices=['best', 'last'], default='last',
         help='whether to use the best or the last model checkpoint for inference')
+    arg('--best-checkpoint-metric', choices=['valid_loss', 'score'], default='score',
+        help='which metric to track when saving the best model checkpoint')
 
 
 def main():

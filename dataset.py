@@ -19,6 +19,8 @@ DATA_ROOT = Path('data')
 SETS_ROOT = DATA_ROOT / 'sets'
 TRAIN_SET = SETS_ROOT / 'train.csv'
 VALID_SET = SETS_ROOT / 'valid.csv'
+FLICKR_TRAIN_SET = SETS_ROOT / 'flickr_train.csv'
+FLICKR_VALID_SET = SETS_ROOT / 'flickr_valid.csv'
 TEST_DIR = DATA_ROOT / 'test'
 
 CLASSES = ['HTC-1-M7', 'LG-Nexus-5x', 'Motorola-Droid-Maxx', 'Motorola-Nexus-6', 'Motorola-X',
@@ -39,7 +41,7 @@ def pil_loader(path):
 
 def opencv_loader(path):
     img = cv2.imread(path)
-    assert img is not None, 'Image is not loaded'
+    assert img is not None, 'Image {} is not loaded'.format(path)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 

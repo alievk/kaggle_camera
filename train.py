@@ -227,15 +227,20 @@ def main():
                                        do_manip=False, fix_path=utils.fix_jpg_tif)
     valid_dataset = dataset.CSVDataset(dataset.VALID_SET, transform=dataset.train_valid_transform,
                                        do_manip=True, fix_path=utils.fix_jpg_tif)
+    valid_dataset_flickr = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=dataset.train_valid_transform,
+                                       do_manip=True)
+    valid_dataset_comb = D.ConcatDataset([valid_dataset, valid_dataset_flickr])
+    test_dataset = dataset.TestDataset()
 
     train_loader = D.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True
     )
     valid_loader = D.DataLoader(
-        valid_dataset, batch_size=args.batch_size, shuffle=False,
+        valid_dataset_comb, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True
     )
+    test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
 
     model = models.ResNet(num_classes=dataset.NUM_CLASSES, model_creator=M.resnet50, pretrained=True)
     model.cuda()
@@ -273,8 +278,6 @@ def main():
         if 'valid' == args.mode:
             validation(tqdm.tqdm(valid_loader, desc='Validation'), model, loss)
         elif 'predict_test' == args.mode:
-            test_dataset = dataset.TestDataset()
-            test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
             preds, paths = inference(test_loader, model)
             save_predictions(preds, paths, args)
     else:

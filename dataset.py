@@ -19,8 +19,14 @@ DATA_ROOT = Path('data')
 SETS_ROOT = DATA_ROOT / 'sets'
 TRAIN_SET = SETS_ROOT / 'train.csv'
 VALID_SET = SETS_ROOT / 'valid.csv'
+TEST_DIR = DATA_ROOT / 'test'
 
-NUM_CLASSES = 10
+CLASSES = ['HTC-1-M7', 'LG-Nexus-5x', 'Motorola-Droid-Maxx', 'Motorola-Nexus-6', 'Motorola-X',
+           'Samsung-Galaxy-Note3', 'Samsung-Galaxy-S4', 'Sony-NEX-7', 'iPhone-4s', 'iPhone-6']
+NUM_CLASSES = len(CLASSES)
+CLASS_TO_IDX = dict(zip(CLASSES, range(NUM_CLASSES)))
+IDX_TO_CLASS = dict(zip(range(NUM_CLASSES), CLASSES))
+
 INPUT_SIZE = 112
 
 
@@ -48,25 +54,27 @@ train_valid_transform = transforms.Compose([
     minimal_transform
 ])
 
+test_transform = transforms.Compose([
+    CenterCrop(INPUT_SIZE),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+
 
 class CSVDataset(Dataset):
     def __init__(self, csv_path, transform=minimal_transform, do_manip=False, manip_prob: float=0.5,
                  loader: Callable=opencv_loader, stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
-        classes = df.columns
-        class_to_idx = dict(zip(classes, range(len(classes))))
         samples = []
-        for cls in classes:
+        for cls in CLASSES:
             paths = df[cls].tolist()
-            samples.extend(zip(paths, [class_to_idx[cls]] * len(paths)))
+            samples.extend(zip(paths, [CLASS_TO_IDX[cls]] * len(paths)))
         assert (len(samples) == df.shape[0] * df.shape[1])
 
         self.transform = transform
         self.do_manip = do_manip
         self.manip_prob = manip_prob
         self.loader = loader
-        self.classes = classes
-        self.class_to_idx = class_to_idx
         self.samples = samples
 
         self.stats = collections.defaultdict(list)
@@ -120,3 +128,23 @@ class CSVDataset(Dataset):
             self.stats = collections.defaultdict(list)
 
         self.stats_update_cnt += 1
+
+
+class TestDataset(Dataset):
+    def __init__(self, image_dir=TEST_DIR, transform=test_transform, loader: Callable=opencv_loader):
+        self.images = [p for p in Path(image_dir).glob('*.tif')]
+        self.image_dir = image_dir
+        self.loader = loader
+        self.transform = transform
+
+    def __getitem__(self, index):
+        path = str(self.images[index])
+        img = self.loader(path)
+
+        if self.transform:
+            img = self.transform(img)
+
+        return img, path
+
+    def __len__(self):
+        return len(self.images)

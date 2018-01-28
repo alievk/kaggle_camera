@@ -1,3 +1,4 @@
+import os
 import argparse
 import shutil
 import json
@@ -167,6 +168,37 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
     return {'valid_loss': loss, 'score': accuracy_weighted}
 
 
+def inference(loader: D.DataLoader, model: N.Module):
+    model.eval()
+    preds = []
+    img_paths = []
+    for batch_input, batch_img_paths in loader:
+        batch_input_var = Variable(batch_input, volatile=True).cuda()
+        batch_pred = model(batch_input_var)
+        preds.extend(list(batch_pred.data.cpu().numpy()))
+        img_paths.extend(list(batch_img_paths))
+
+    return preds, img_paths
+
+
+def save_predictions(preds, paths, args):
+    import pickle
+    import pandas as pd
+    preds_cls, names = [], []
+    for pred_prob, path in zip(preds, paths):
+        pred_idx = np.argmax(pred_prob)
+        pred_cls = dataset.IDX_TO_CLASS[pred_idx]
+        name = os.path.basename(path)
+        preds_cls.append(pred_cls)
+        names.append(name)
+
+    run_dir = Path(args.run_dir)
+    csv_path = run_dir / (args.mode + '.csv')
+    infer_path = run_dir / (args.mode + '_detailed.pkl')
+    pd.DataFrame({'fname': names, 'camera': preds_cls}, columns=['fname', 'camera']).to_csv(str(csv_path), index=False)
+    pickle.dump((preds, paths), open(str(infer_path), 'wb'))
+
+
 def add_arguments(parser: argparse.ArgumentParser):
     arg = parser.add_argument
     arg('--mode', choices=['train', 'valid', 'predict_valid', 'predict_test'], default='train')
@@ -230,15 +262,21 @@ def main():
         train(
             init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),
             **train_kwargs)
-    elif 'valid' == args.mode:
+    elif args.mode in ['valid', 'predict_test']:
         if 'best' == args.checkpoint:
             ckpt = (run_dir / 'best-model.pt')
         else:
             ckpt = (run_dir / 'model.pt')
         state = torch.load(str(ckpt))
         model.load_state_dict(state['model'])
-        print('Validating {}'.format(ckpt))
-        validation(tqdm.tqdm(valid_loader, desc='Validation'), model, loss)
+        print('Loaded {}'.format(ckpt))
+        if 'valid' == args.mode:
+            validation(tqdm.tqdm(valid_loader, desc='Validation'), model, loss)
+        elif 'predict_test' == args.mode:
+            test_dataset = dataset.TestDataset()
+            test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
+            preds, paths = inference(test_loader, model)
+            save_predictions(preds, paths, args)
     else:
         raise ValueError('Unknown mode {}'.format(args.mode))
 

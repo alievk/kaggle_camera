@@ -245,7 +245,7 @@ def main():
     train_dataset = dataset.CSVDataset(dataset.TRAINVAL_SET, transform=dataset.train_valid_transform,
                                        do_manip=False, fix_path=utils.fix_jpg_tif)
     valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=dataset.train_valid_transform,
-                                       do_manip=True)
+                                       do_manip=True, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset()
 
     train_loader = D.DataLoader(

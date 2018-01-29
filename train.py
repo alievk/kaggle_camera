@@ -30,7 +30,7 @@ def write_event(log, step: int, **data):
     log.flush()
 
 
-def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_changes=2, **kwargs):
+def train(init_optimizer, lr, n_epochs=None, patience=2, lr_decay=0.2, max_lr_changes=2, **kwargs):
     args = kwargs['args']
     train_loader = kwargs['train_loader']
     valid_loader = kwargs['valid_loader']
@@ -67,7 +67,6 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
         print('Saving best checkpoint with loss {}, score {}'.format(best_valid_loss, best_score))
         shutil.copy(str(model_path), str(best_model_path))
 
-    lr = args.lr
     optimizer = init_optimizer(lr)
 
     batch_time = utils.AverageMeter()
@@ -222,7 +221,8 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('-j', '--workers', default=8, type=int, metavar='N', help='number of data loading workers')
     arg('-b', '--batch-size', default=32, type=int, metavar='N', help='mini-batch size')
     arg('-p', '--print_freq', default=10, type=int, metavar='N', help='print frequency')
-    arg('--lr', '--learning-rate', default=0.0002, type=float, metavar='LR', help='initial learning rate')
+    arg('--lr', '--learning-rate', default=0.0001, type=float, metavar='LR', help='initial learning rate')
+    arg('--lr-warm', default=0.0001, type=float, metavar='LR', help='warm-up learning rate')
     arg('-r', '--run-dir', required=True, metavar='DIR', help='directory with model checkpoints, logs, etc.')
     arg('--clean', action='store_true', help='clean the output directory')
     arg('--patience', default=4, type=int, metavar='N',
@@ -276,12 +276,15 @@ def main():
             'model': model,
             'criterion': loss,
         }
+
         train(
             init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
+            lr=args.lr_warm,
             n_epochs=1,
             **train_kwargs)
         train(
             init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),
+            lr=args.lr,
             **train_kwargs)
     elif args.mode in ['valid', 'predict_test']:
         if 'best' == args.checkpoint:

@@ -25,6 +25,36 @@ class CenterCrop:
         return img[y1:y1 + th, x1:x1 + tw, :].astype(np.uint8)
 
 
+def rotate_90n_cw(src, angle):
+    """Rotate image by angle which is multiple of 90"""
+    assert angle % 90 == 0 and 360 >= angle >= -360
+    if angle == 270 or angle == -90:
+        dst = cv2.transpose(src)
+        dst = cv2.flip(dst, 0)
+    elif angle == 180 or angle == -180:
+        dst = cv2.flip(src, -1)
+    elif angle == 90 or angle == -270:
+        dst = cv2.transpose(src)
+        dst = cv2.flip(dst, 1)
+    elif angle == 360 or angle == 0 or angle == -360:
+        dst = np.copy(src)
+    else:
+        raise ValueError
+    return dst
+
+
+class RandomRotation:
+    def __call__(self, img):
+        np.random.seed()  # this is important when multiprocessing
+        angles = [0, 90, 180, 270]
+        random_angle = np.random.choice(angles)
+
+        if random_angle == 0:
+            return img
+
+        return rotate_90n_cw(img, random_angle)
+
+
 MANIPULATIONS = ['jpg70', 'jpg90', 'gamma0.8', 'gamma1.2', 'bicubic0.5', 'bicubic0.8', 'bicubic1.5', 'bicubic2.0']
 
 

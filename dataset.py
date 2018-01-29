@@ -19,6 +19,7 @@ DATA_ROOT = Path('data')
 SETS_ROOT = DATA_ROOT / 'sets'
 TRAIN_SET = SETS_ROOT / 'train.csv'
 VALID_SET = SETS_ROOT / 'valid.csv'
+TRAINVAL_SET = SETS_ROOT / 'trainval.csv'
 FLICKR_TRAIN_SET = SETS_ROOT / 'flickr_train.csv'
 FLICKR_VALID_SET = SETS_ROOT / 'flickr_valid.csv'
 TRAINVAL_DIR = DATA_ROOT / 'train'

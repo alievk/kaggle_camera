@@ -64,7 +64,7 @@ def train(init_optimizer, n_epochs=None, patience=2, lr_decay=0.2, max_lr_change
     }, str(model_path))
 
     def save_best_checkpoint():
-        print('Saving best checkpoint')
+        print('Saving best checkpoint with loss {}, score {}'.format(best_valid_loss, best_score))
         shutil.copy(str(model_path), str(best_model_path))
 
     lr = args.lr
@@ -242,13 +242,10 @@ def main():
 
     assert torch.cuda.is_available(), 'CUDA is not available'
 
-    train_dataset = dataset.CSVDataset(dataset.TRAIN_SET, transform=dataset.train_valid_transform,
+    train_dataset = dataset.CSVDataset(dataset.TRAINVAL_SET, transform=dataset.train_valid_transform,
                                        do_manip=False, fix_path=utils.fix_jpg_tif)
-    valid_dataset = dataset.CSVDataset(dataset.VALID_SET, transform=dataset.train_valid_transform,
-                                       do_manip=True, fix_path=utils.fix_jpg_tif)
-    valid_dataset_flickr = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=dataset.train_valid_transform,
-                                              do_manip=True)
-    valid_dataset_comb = D.ConcatDataset([valid_dataset, valid_dataset_flickr])
+    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=dataset.train_valid_transform,
+                                       do_manip=True)
     test_dataset = dataset.TestDataset()
 
     train_loader = D.DataLoader(
@@ -256,7 +253,7 @@ def main():
         num_workers=args.workers, pin_memory=True
     )
     valid_loader = D.DataLoader(
-        valid_dataset_comb, batch_size=args.batch_size, shuffle=False,
+        valid_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True
     )
     test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)

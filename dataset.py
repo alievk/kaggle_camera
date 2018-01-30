@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
 import augmentations as aug
-from augmentations import CenterCrop, RandomManipulation
+from augmentations import CenterCrop, RandomManipulation, RandomRotation
 
 
 DATA_ROOT = Path('data')
@@ -60,6 +60,7 @@ minimal_transform = transforms.Compose([
 ])
 
 train_valid_transform = transforms.Compose([
+    RandomRotation(),
     minimal_transform
 ])
 

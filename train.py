@@ -30,13 +30,14 @@ def write_event(log, step: int, **data):
     log.flush()
 
 
-def train(init_optimizer, lr, n_epochs=None, patience=2, lr_decay=0.2, max_lr_changes=2, **kwargs):
+def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **kwargs):
     args = kwargs['args']
     train_loader = kwargs['train_loader']
     valid_loader = kwargs['valid_loader']
     model = kwargs['model']
     criterion = kwargs['criterion']
     n_epochs = n_epochs or args.epochs
+    patience = args.patience
 
     run_dir = Path(args.run_dir)
     model_path = run_dir / 'model.pt'

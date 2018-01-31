@@ -148,5 +148,5 @@ def resnet50(pretrained=False, **kwargs):
     if pretrained:
         model.load_state_dict(
             model_zoo.load_url('https://download.pytorch.org/models/resnet50-19c8e357.pth'))
-        model.set_number_of_classes(kwargs['num_classes'])
+    model.set_number_of_classes(kwargs['num_classes'])
     return model

@@ -294,13 +294,15 @@ def main():
             'criterion': loss,
         }
 
+        # train(
+        #     init_optimizer=lambda lr: O.SGD(model.classifier.parameters(), lr=lr, momentum=0.9),
+        #     lr=args.lr_warm,
+        #     n_epochs=1,
+        #     **train_kwargs)
         train(
-            init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
-            lr=args.lr_warm,
-            n_epochs=1,
-            **train_kwargs)
-        train(
-            init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),
+            init_optimizer=lambda lr: O.SGD([{'params': model.feature_parameters(), 'lr': lr},
+                                             {'params': model.classifier_parameters(), 'lr': 1e-6}],
+                                            momentum=0.9),
             lr=args.lr,
             **train_kwargs)
     elif args.mode in ['valid', 'predict_test']:

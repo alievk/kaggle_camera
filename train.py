@@ -273,7 +273,7 @@ def main():
         valid_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True
     )
-    test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
+    test_loader = D.DataLoader(test_dataset, batch_size=args.batch_size, num_workers=args.workers)
 
     model = models.ResNet(num_classes=dataset.NUM_CLASSES, model_creator=M.resnet50, pretrained=True)
     #model = models.SqueezeNet(num_classes=dataset.NUM_CLASSES, pretrained=True)

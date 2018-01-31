@@ -16,10 +16,12 @@ import torch.optim as O
 import torch.utils.data as D
 from torch.autograd import Variable
 import torchvision.models as M
+import torchvision.transforms as transforms
 
 import dataset
 import models
 import utils
+from augmentations import CenterCrop, RandomRotation
 
 
 def write_event(log, step: int, **data):
@@ -219,9 +221,8 @@ def save_predictions(preds, paths, args):
 def add_arguments(parser: argparse.ArgumentParser):
     arg = parser.add_argument
     arg('--mode', choices=['train', 'valid', 'predict_valid', 'predict_test'], default='train')
-    arg('-j', '--workers', default=8, type=int, metavar='N', help='number of data loading workers')
+    arg('-i', '--input-size', default=224, type=int, metavar='N', help='input size of the network')
     arg('-b', '--batch-size', default=32, type=int, metavar='N', help='mini-batch size')
-    arg('-p', '--print_freq', default=10, type=int, metavar='N', help='print frequency')
     arg('--lr', '--learning-rate', default=0.0001, type=float, metavar='LR', help='initial learning rate')
     arg('--lr-warm', default=0.0001, type=float, metavar='LR', help='warm-up learning rate')
     arg('-r', '--run-dir', required=True, metavar='DIR', help='directory with model checkpoints, logs, etc.')
@@ -233,6 +234,8 @@ def add_arguments(parser: argparse.ArgumentParser):
         help='whether to use the best or the last model checkpoint for inference')
     arg('--best-checkpoint-metric', choices=['valid_loss', 'score'], default='score',
         help='which metric to track when saving the best model checkpoint')
+    arg('-p', '--print_freq', default=10, type=int, metavar='N', help='print frequency')
+    arg('-j', '--workers', default=8, type=int, metavar='N', help='number of data loading workers')
 
 
 def main():
@@ -243,11 +246,24 @@ def main():
 
     assert torch.cuda.is_available(), 'CUDA is not available'
 
-    train_dataset = dataset.CSVDataset(dataset.TRAINVAL_SET, transform=dataset.train_valid_transform,
-                                       do_manip=False, fix_path=utils.fix_jpg_tif)
-    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=dataset.train_valid_transform,
+    train_valid_transform = transforms.Compose([
+        RandomRotation(),
+        CenterCrop(args.input_size),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    test_transform = transforms.Compose([
+        CenterCrop(args.input_size),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    train_dataset = dataset.CSVDataset(dataset.TRAINVAL_SET, transform=train_valid_transform,
                                        do_manip=True, fix_path=utils.fix_jpg_tif)
-    test_dataset = dataset.TestDataset()
+    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform,
+                                       do_manip=True, fix_path=utils.fix_jpg_tif)
+    test_dataset = dataset.TestDataset(transform=test_transform)
 
     train_loader = D.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -260,6 +276,7 @@ def main():
     test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
 
     model = models.ResNet(num_classes=dataset.NUM_CLASSES, model_creator=M.resnet50, pretrained=True)
+    #model = models.SqueezeNet(num_classes=dataset.NUM_CLASSES, pretrained=True)
     model.cuda()
 
     loss = N.CrossEntropyLoss()

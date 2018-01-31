@@ -9,10 +9,9 @@ import pandas as pd
 from PIL import Image
 
 from torch.utils.data import Dataset
-import torchvision.transforms as transforms
 
 import augmentations as aug
-from augmentations import CenterCrop, RandomManipulation, RandomRotation
+from augmentations import RandomManipulation
 
 
 DATA_ROOT = Path('data')
@@ -36,8 +35,6 @@ NUM_CLASSES = len(CLASSES)
 CLASS_TO_IDX = dict(zip(CLASSES, range(NUM_CLASSES)))
 IDX_TO_CLASS = dict(zip(range(NUM_CLASSES), CLASSES))
 
-INPUT_SIZE = 112
-
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -53,26 +50,8 @@ def opencv_loader(path):
     return img
 
 
-minimal_transform = transforms.Compose([
-    CenterCrop(INPUT_SIZE),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-train_valid_transform = transforms.Compose([
-    RandomRotation(),
-    minimal_transform
-])
-
-test_transform = transforms.Compose([
-    CenterCrop(INPUT_SIZE),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=minimal_transform, do_manip=False, manip_prob: float=0.5,
+    def __init__(self, csv_path, transform=None, do_manip=False, manip_prob: float=0.5,
                  loader: Callable=opencv_loader, stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
         paths = df['fname']
@@ -150,7 +129,7 @@ class CSVDataset(Dataset):
 
 
 class TestDataset(Dataset):
-    def __init__(self, image_dir=TEST_DIR, transform=test_transform, loader: Callable=opencv_loader):
+    def __init__(self, image_dir=TEST_DIR, transform=None, loader: Callable=opencv_loader):
         self.images = [p for p in Path(image_dir).glob('*.tif')]
         self.image_dir = image_dir
         self.loader = loader

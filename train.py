@@ -15,7 +15,6 @@ import torch.nn as N
 import torch.optim as O
 import torch.utils.data as D
 from torch.autograd import Variable
-import torchvision.models as M
 import torchvision.transforms as transforms
 
 import dataset
@@ -275,7 +274,7 @@ def main():
     )
     test_loader = D.DataLoader(test_dataset, batch_size=args.batch_size, num_workers=args.workers)
 
-    model = models.ResNet(num_classes=dataset.NUM_CLASSES, model_creator=M.resnet50, pretrained=True)
+    model = models.resnet50(num_classes=dataset.NUM_CLASSES, pretrained=True)
     #model = models.SqueezeNet(num_classes=dataset.NUM_CLASSES, pretrained=True)
     model.cuda()
 
@@ -295,13 +294,15 @@ def main():
             'criterion': loss,
         }
 
+        # train(
+        #     init_optimizer=lambda lr: O.SGD(model.classifier.parameters(), lr=lr, momentum=0.9),
+        #     lr=args.lr_warm,
+        #     n_epochs=1,
+        #     **train_kwargs)
         train(
-            init_optimizer=lambda lr: O.SGD(model.fresh_parameters(), lr=lr, momentum=0.9),
-            lr=args.lr_warm,
-            n_epochs=1,
-            **train_kwargs)
-        train(
-            init_optimizer=lambda lr: O.SGD(model.parameters(), lr=lr, momentum=0.9),
+            init_optimizer=lambda lr: O.SGD([{'params': model.feature_parameters(), 'lr': lr},
+                                             {'params': model.classifier_parameters(), 'lr': 1e-6}],
+                                            momentum=0.9),
             lr=args.lr,
             **train_kwargs)
     elif args.mode in ['valid', 'predict_test']:

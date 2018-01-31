@@ -15,7 +15,6 @@ import torch.nn as N
 import torch.optim as O
 import torch.utils.data as D
 from torch.autograd import Variable
-import torchvision.models as M
 import torchvision.transforms as transforms
 
 import dataset
@@ -275,7 +274,7 @@ def main():
     )
     test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
 
-    model = models.ResNet(num_classes=dataset.NUM_CLASSES, model_creator=M.resnet50, pretrained=True)
+    model = models.resnet50(num_classes=dataset.NUM_CLASSES, pretrained=True)
     #model = models.SqueezeNet(num_classes=dataset.NUM_CLASSES, pretrained=True)
     model.cuda()
 

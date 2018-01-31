@@ -65,8 +65,9 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **k
         'best_score': best_score
     }, str(model_path))
 
-    def save_best_checkpoint():
-        print('Saving best checkpoint with loss {}, score {}'.format(best_valid_loss, best_score))
+    def save_best_checkpoint(metrics):
+        print('Saving best checkpoint with loss {}, score {}'.format(
+            metrics['score'], metrics['score']))
         shutil.copy(str(model_path), str(best_model_path))
 
     optimizer = init_optimizer(lr)
@@ -126,11 +127,11 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **k
             if valid_metrics['score'] > best_score:
                 best_score = valid_metrics['score']
                 if args.best_checkpoint_metric == 'score':
-                    save_best_checkpoint()
+                    save_best_checkpoint(valid_metrics)
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
                 if args.best_checkpoint_metric == 'valid_loss':
-                    save_best_checkpoint()
+                    save_best_checkpoint(valid_metrics)
             elif (patience and epoch - lr_reset_epoch > patience and
                   min(valid_losses[-patience:]) > best_valid_loss):
                 lr_changes += 1
@@ -174,8 +175,8 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
     loss = np.mean(losses)
     unmanip_mask = np.array(manips) == -1
     matches = np.array(outputs) == np.array(targets)
-    accuracy_unmanip = np.mean(matches[unmanip_mask])
-    accuracy_manip = np.mean(matches[~unmanip_mask])
+    accuracy_unmanip = np.mean(matches[unmanip_mask]) if unmanip_mask.any() else 0.
+    accuracy_manip = np.mean(matches[~unmanip_mask]) if not unmanip_mask.all() else 0.
     accuracy_weighted = 0.7 * accuracy_unmanip + 0.3 * accuracy_manip
     print('Validation loss {:.4f}\t'
           'Accuracy unmanip {:.4f}\tmanip {:.4f}\tweighted: {:.4f}'.format(

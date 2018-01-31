@@ -276,6 +276,7 @@ def main():
     test_loader = D.DataLoader(test_dataset, batch_size=32, num_workers=0)
 
     model = models.ResNet(num_classes=dataset.NUM_CLASSES, model_creator=M.resnet50, pretrained=True)
+    #model = models.SqueezeNet(num_classes=dataset.NUM_CLASSES, pretrained=True)
     model.cuda()
 
     loss = N.CrossEntropyLoss()

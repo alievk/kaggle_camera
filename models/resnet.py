@@ -129,7 +129,12 @@ class ResNet(N.Module):
 
         return x
 
-    def fresh_parameters(self):
+    def feature_parameters(self):
+        for layer in [self.conv1, self.bn1, self.layer1, self.layer2, self.layer3, self.layer4]:
+            for name, param in layer.named_parameters():
+                yield param
+
+    def classifier_parameters(self):
         return self.fc.parameters()
 
 

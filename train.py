@@ -43,8 +43,12 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **k
     run_dir = Path(args.run_dir)
     model_path = run_dir / 'model.pt'
     best_model_path = run_dir / 'best-model.pt'
-    if model_path.exists():
-        state = torch.load(str(model_path))
+    if args.snapshot:
+        snapshot = Path(args.snapshot)
+    else:
+        snapshot = model_path
+    if snapshot.exists():
+        state = torch.load(str(snapshot))
         epoch = state['epoch'] + 1
         step = state['step']
         best_valid_loss = state['best_valid_loss']
@@ -236,6 +240,8 @@ def add_arguments(parser: argparse.ArgumentParser):
         help='which metric to track when saving the best model checkpoint')
     arg('-p', '--print_freq', default=10, type=int, metavar='N', help='print frequency')
     arg('-j', '--workers', default=8, type=int, metavar='N', help='number of data loading workers')
+    arg('--snapshot', default='', type=str, metavar='PATH',
+        help='use model snapshot to continue learning')
 
 
 def main():

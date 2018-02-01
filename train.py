@@ -259,8 +259,11 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_dataset = dataset.CSVDataset(dataset.TRAINVAL_SET, transform=train_valid_transform,
-                                       do_manip=True, fix_path=utils.fix_jpg_tif)
+    train_dataset = D.ConcatDataset([
+        dataset.CSVDataset(dataset.TRAINVAL_SET, transform=train_valid_transform,
+                           do_manip=True, fix_path=utils.fix_jpg_tif),
+        dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, transform=train_valid_transform,
+                           do_manip=True, fix_path=utils.fix_jpg_tif)])
     valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform,
                                        do_manip=True, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset(transform=test_transform)

@@ -297,7 +297,7 @@ def main():
         run_dir.mkdir(exist_ok=True)
         run_dir.joinpath('params.json').write_text(
             json.dumps(vars(args), indent=True, sort_keys=True))
-        subprocess.check_call('git diff > {}'.format(run_dir / 'patch'), shell=True)
+        subprocess.check_call("git diff $(find . -name '*.py') > {}".format(run_dir / 'patch'), shell=True)
         train_kwargs = {
             'args': args,
             'train_loader': train_loader,

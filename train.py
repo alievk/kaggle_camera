@@ -10,6 +10,8 @@ from datetime import datetime
 
 import numpy as np
 import tqdm
+import pickle
+import pandas as pd
 
 import torch
 import torch.nn as N
@@ -189,7 +191,22 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
     return {'valid_loss': loss, 'score': accuracy_weighted}
 
 
-def inference(loader: D.DataLoader, model: N.Module):
+def predict_valid(loader: D.DataLoader, model: N.Module):
+    model.eval()
+    preds = []
+    targets = []
+    manips = []
+    for batch_input, batch_targets, batch_manip in loader:
+        batch_input_var = Variable(batch_input, volatile=True).cuda()
+        batch_pred = model(batch_input_var)
+        preds.extend(list(batch_pred.data.cpu().numpy()))
+        targets.extend(list(batch_targets))
+        manips.extend(list(batch_manip))
+
+    return preds, targets, manips
+
+
+def predict_test(loader: D.DataLoader, model: N.Module):
     model.eval()
     preds = []
     img_paths = []
@@ -202,9 +219,16 @@ def inference(loader: D.DataLoader, model: N.Module):
     return preds, img_paths
 
 
-def save_predictions(preds, paths, args):
-    import pickle
-    import pandas as pd
+def save_valid_predictions(preds, targets, manips, args):
+    run_dir = Path(args.run_dir)
+    out_dir = Path('output') / run_dir.relative_to('.')
+    if not out_dir.exists():
+        os.makedirs(str(out_dir))
+    save_path = out_dir / (args.mode + '.pkl')
+    pickle.dump((preds, targets, manips), open(str(save_path), 'wb'))
+
+
+def save_test_predictions(preds, paths, args):
     preds_cls, names = [], []
     for pred_prob, path in zip(preds, paths):
         pred_idx = np.argmax(pred_prob)
@@ -317,7 +341,7 @@ def main():
                                             momentum=0.9),
             lr=args.lr,
             **train_kwargs)
-    elif args.mode in ['valid', 'predict_test']:
+    elif args.mode in ['valid', 'predict_valid', 'predict_test']:
         if 'best' == args.checkpoint:
             ckpt = (run_dir / 'best-model.pt')
         else:
@@ -327,9 +351,12 @@ def main():
         print('Loaded {}'.format(ckpt))
         if 'valid' == args.mode:
             validation(tqdm.tqdm(valid_loader, desc='Validation'), model, loss)
+        elif 'predict_valid' == args.mode:
+            preds, targets, manips = predict_valid(valid_loader, model)
+            save_valid_predictions(preds, targets, manips, args)
         elif 'predict_test' == args.mode:
-            preds, paths = inference(test_loader, model)
-            save_predictions(preds, paths, args)
+            preds, paths = predict_test(test_loader, model)
+            save_test_predictions(preds, paths, args)
     else:
         raise ValueError('Unknown mode {}'.format(args.mode))
 

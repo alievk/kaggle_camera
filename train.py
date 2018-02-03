@@ -292,11 +292,11 @@ def main():
 
     train_dataset = D.ConcatDataset([
         dataset.CSVDataset(dataset.TRAINVAL_SET, transform=train_valid_transform,
-                           do_manip=True, fix_path=utils.fix_jpg_tif),
+                           do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif),
         dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, transform=train_valid_transform,
-                           do_manip=True, fix_path=utils.fix_jpg_tif)])
+                           do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)])
     valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform,
-                                       do_manip=True, fix_path=utils.fix_jpg_tif)
+                                       do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset(transform=test_transform)
 
     train_loader = D.DataLoader(

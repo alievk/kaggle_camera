@@ -51,7 +51,7 @@ def opencv_loader(path):
 
 
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=None, do_manip=False, manip_prob: float=0.5,
+    def __init__(self, csv_path, transform=None, do_manip=False, manip_prob: float=0.5, repeats=1,
                  loader: Callable=opencv_loader, stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
         paths = df['fname']
@@ -72,6 +72,7 @@ class CSVDataset(Dataset):
         self.manip_prob = manip_prob
         self.loader = loader
         self.samples = samples
+        self.repeats = repeats
 
         self.stats = collections.defaultdict(list)
         self.stats_fq = stats_fq
@@ -80,7 +81,7 @@ class CSVDataset(Dataset):
         self.fix_path = fix_path
 
     def __getitem__(self, index):
-        item = self.samples[index]
+        item = self.samples[index % len(self.samples)]
         path, target = item['path'], item['target']
         if self.fix_path:
             path = self.fix_path(path)
@@ -109,7 +110,7 @@ class CSVDataset(Dataset):
         return img, target, manip
 
     def __len__(self):
-        return len(self.samples)
+        return self.repeats * len(self.samples)
 
     def update_stats(self):
         if self.stats_fq > 0:

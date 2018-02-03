@@ -77,7 +77,8 @@ def manipulation(img, manip):
 
 
 class RandomManipulation:
-    def __call__(self, img):
+    def __call__(self, img, disable_manip=[]):
         np.random.seed()  # this is important when multiprocessing
-        manip = np.random.choice(MANIPULATIONS)  # type: str
+        manip_choices = [m for m in MANIPULATIONS if m not in disable_manip]
+        manip = np.random.choice(manip_choices)  # type: str
         return manipulation(img, manip), manip

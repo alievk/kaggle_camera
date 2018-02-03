@@ -90,12 +90,12 @@ class CSVDataset(Dataset):
         self.stats['loader'].append(time() - load_s)
 
         manip = -1
-        if 'manip' in item and item['manip'] == 1:
-            # actually, the jpg quality ranges between 80-93, but we don't care about it right now
-            manip = aug.MANIPULATIONS.index('jpg90')
-        elif self.do_manip and np.random.rand() < self.manip_prob:
+        if self.do_manip and np.random.rand() < self.manip_prob:
             manip_s = time()
-            img, manip_name = RandomManipulation()(img)
+            disable_manip = []
+            if 'manip' in item and item['manip'] == 1:
+                disable_manip = ['jpg70', 'jpg90']
+            img, manip_name = RandomManipulation()(img, disable_manip)
             self.stats['manip'].append(time() - manip_s)
             manip = aug.MANIPULATIONS.index(manip_name)
 

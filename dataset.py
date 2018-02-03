@@ -2,6 +2,7 @@ import collections
 from time import time
 from pathlib import Path
 from typing import Callable
+from collections import defaultdict
 
 import numpy as np
 import cv2
@@ -51,13 +52,15 @@ def opencv_loader(path):
 
 
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=None, do_manip=False, manip_prob: float=0.5, repeats=1,
-                 loader: Callable=opencv_loader, stats_fq: int=0, fix_path: Callable=None):
+    def __init__(self, csv_path, transform=None, class_aware=True, unique_samples=False,
+                 do_manip=False, manip_prob: float=0.5, repeats=1, loader: Callable=opencv_loader,
+                 stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
         paths = df['fname']
         is_flickr = 'flickr' in Path(csv_path).stem
         has_manip = 'manip' in df.columns
         samples = []
+        class_samples = defaultdict(list)
         for i, path in enumerate(paths):
             full_path = Path(TRAINVAL_DIR / path) if not is_flickr else Path(FLICKR_DIR) / path
             model = Path(path).parts[0]
@@ -66,13 +69,17 @@ class CSVDataset(Dataset):
             if has_manip:
                 item['manip'] = df.iloc[i]['manip']
             samples.append(item)
+            class_samples[target].append(item)
 
         self.transform = transform
         self.do_manip = do_manip
         self.manip_prob = manip_prob
         self.loader = loader
         self.samples = samples
+        self.class_samples = class_samples
         self.repeats = repeats
+        self.class_aware = class_aware
+        self.unique_samples = unique_samples
 
         self.stats = collections.defaultdict(list)
         self.stats_fq = stats_fq
@@ -81,7 +88,10 @@ class CSVDataset(Dataset):
         self.fix_path = fix_path
 
     def __getitem__(self, index):
-        item = self.samples[index % len(self.samples)]
+        if self.class_aware:
+            item = self._class_aware_sample(index)
+        else:
+            item = self.samples[index % len(self.samples)]
         path, target = item['path'], item['target']
         if self.fix_path:
             path = self.fix_path(path)
@@ -110,7 +120,16 @@ class CSVDataset(Dataset):
         return img, target, manip
 
     def __len__(self):
+        if self.class_aware and not self.unique_samples:
+            return self.repeats * len(CLASSES) * max([len(v) for v in self.class_samples.values()])
         return self.repeats * len(self.samples)
+
+    def _class_aware_sample(self, g_idx):
+        cls = g_idx % len(CLASSES)
+        idx = g_idx // len(CLASSES)
+        if idx and idx % len(self.class_samples[cls]) == 0:
+            self.class_samples[cls] = np.random.permutation(self.class_samples[cls])
+        return self.class_samples[cls][idx % len(self.class_samples[cls])]
 
     def update_stats(self):
         if self.stats_fq > 0:

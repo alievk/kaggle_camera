@@ -297,7 +297,7 @@ def main():
                            do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
         dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, transform=train_valid_transform,
                            do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
-    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform,
+    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform, unique_samples=True,
                                        do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset(transform=test_transform)
 

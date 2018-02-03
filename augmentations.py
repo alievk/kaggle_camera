@@ -1,7 +1,20 @@
 import numbers
+from typing import Callable
 
 import numpy as np
 import cv2
+
+
+class Sometimes:
+    def __init__(self, head: Callable, eagle: Callable, head_prob: float):
+        self.head = head
+        self.eagle = eagle
+        self.head_prob = head_prob
+
+    def __call__(self, img):
+        if self.head_prob > np.random.uniform(0., 1.):
+            return self.head(img)
+        return self.eagle(img)
 
 
 class CenterCrop:

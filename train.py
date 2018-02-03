@@ -34,7 +34,7 @@ def write_event(log, step: int, **data):
     log.flush()
 
 
-def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **kwargs):
+def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
     args = kwargs['args']
     train_loader = kwargs['train_loader']
     valid_loader = kwargs['valid_loader']
@@ -74,7 +74,7 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **k
 
     def save_best_checkpoint(metrics):
         print('Saving best checkpoint with loss {}, score {}'.format(
-            metrics['score'], metrics['score']))
+            metrics['valid_loss'], metrics['score']))
         shutil.copy(str(model_path), str(best_model_path))
 
     optimizer = init_optimizer(lr)
@@ -88,8 +88,9 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **k
     lr_changes = 0
     write_event(log, step, lr=lr)
     for epoch in range(epoch, n_epochs):
-        print('Epoch {}/{}\t'
-              'learning rate {}'.format(epoch + 1, n_epochs, lr))
+        print('Run {}\t'
+              'Epoch {}/{}\t'
+              'learning rate {}'.format(args.run_dir, epoch + 1, n_epochs, lr))
         model.train()
         random.seed()
         try:
@@ -142,7 +143,7 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, max_lr_changes=2, **k
             elif (patience and epoch - lr_reset_epoch > patience and
                   min(valid_losses[-patience:]) > best_valid_loss):
                 lr_changes += 1
-                if lr_changes > max_lr_changes:
+                if lr_changes > args.lr_max_changes:
                     print('LR changes exceeded maximum, stop.')
                     break
                 print('Validation loss plateaued, decaying LR.')
@@ -254,6 +255,7 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('-b', '--batch-size', default=32, type=int, metavar='N', help='mini-batch size')
     arg('--lr', '--learning-rate', default=0.0001, type=float, metavar='LR', help='initial learning rate')
     arg('--lr-warm', default=0.0001, type=float, metavar='LR', help='warm-up learning rate')
+    arg('--lr-max-changes', default=3, type=int, metavar='N', help='maximum number of LR changes')
     arg('-r', '--run-dir', required=True, metavar='DIR', help='directory with model checkpoints, logs, etc.')
     arg('--clean', action='store_true', help='clean the output directory')
     arg('--patience', default=4, type=int, metavar='N',
@@ -278,7 +280,7 @@ def main():
     assert torch.cuda.is_available(), 'CUDA is not available'
 
     train_valid_transform = transforms.Compose([
-        Sometimes(RandomCrop(args.input_size), CenterCrop(args.input_size), 0.5),
+        Sometimes(RandomCrop(args.input_size), CenterCrop(args.input_size), 1.0),
         RandomRotation(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -338,7 +340,7 @@ def main():
         train(
             init_optimizer=lambda lr: O.SGD([{'params': model.feature_parameters(), 'lr': lr},
                                              {'params': model.classifier_parameters(), 'lr': 1e-6}],
-                                            momentum=0.9),
+                                              momentum=0.9),
             lr=args.lr,
             **train_kwargs)
     elif args.mode in ['valid', 'predict_valid', 'predict_test']:

@@ -23,7 +23,7 @@ import torchvision.transforms as transforms
 import dataset
 import models
 import utils
-from augmentations import CenterCrop, RandomRotation
+from augmentations import CenterCrop, RandomCrop, RandomRotation
 
 
 def write_event(log, step: int, **data):
@@ -278,6 +278,7 @@ def main():
     assert torch.cuda.is_available(), 'CUDA is not available'
 
     train_valid_transform = transforms.Compose([
+        RandomCrop(args.input_size),
         RandomRotation(),
         CenterCrop(args.input_size),
         transforms.ToTensor(),
@@ -292,9 +293,9 @@ def main():
 
     train_dataset = D.ConcatDataset([
         dataset.CSVDataset(dataset.TRAINVAL_SET, transform=train_valid_transform,
-                           do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif),
+                           do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
         dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, transform=train_valid_transform,
-                           do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)])
+                           do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
     valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform,
                                        do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset(transform=test_transform)

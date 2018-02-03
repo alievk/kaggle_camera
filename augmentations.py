@@ -25,6 +25,27 @@ class CenterCrop:
         return img[y1:y1 + th, x1:x1 + tw, :].astype(np.uint8)
 
 
+class RandomCrop(object):
+    """Crops the given np.array randomly to have a region of
+    the given size. size can be a tuple (target_height, target_width)
+    or an integer, in which case the target will be of a square shape (size, size)
+    """
+
+    def __init__(self, size):
+        if isinstance(size, numbers.Number):
+            self.size = (int(size), int(size))
+        else:
+            self.size = size
+
+    def __call__(self, img):
+        h, w = img.shape[0], img.shape[1]
+        # w, h = img.size
+        th, tw = self.size
+        x1 = np.random.randint(0, w - tw - 1)
+        y1 = np.random.randint(0, h - th - 1)
+        return img[y1:y1 + th, x1:x1 + tw, :].astype(np.int64)
+
+
 def rotate_90n_cw(src, angle):
     """Rotate image by angle which is multiple of 90"""
     assert angle % 90 == 0 and 360 >= angle >= -360

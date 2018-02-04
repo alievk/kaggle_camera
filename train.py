@@ -77,7 +77,7 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
             metrics['valid_loss'], metrics['score']))
         shutil.copy(str(model_path), str(best_model_path))
 
-    optimizer = init_optimizer(lr)
+    optimizer = init_optimizer(lr, 0)
 
     batch_time = utils.AverageMeter()
     data_time = utils.AverageMeter()
@@ -149,7 +149,7 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
                 print('Validation loss plateaued, decaying LR.')
                 lr *= lr_decay
                 lr_reset_epoch = epoch
-                optimizer = init_optimizer(lr)
+                optimizer = init_optimizer(lr, lr_changes)
                 write_event(log, step, lr=lr)
         except KeyboardInterrupt:
             print('Ctrl+C, saving snapshot')
@@ -331,15 +331,20 @@ def main():
             'criterion': loss,
         }
 
-        # train(
-        #     init_optimizer=lambda lr: O.SGD(model.classifier.parameters(), lr=lr, momentum=0.9),
-        #     lr=args.lr_warm,
-        #     n_epochs=1,
-        #     **train_kwargs)
+        def optimizer_schedule(lr, lr_changes):
+            return O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
+                          {'params': model.module.classifier_parameters(), 'lr': 1e-6}], momentum=0.9)
+            # if lr_changes == 0:
+            #     return O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
+            #                   {'params': model.module.classifier_parameters(), 'lr': 1e-6}],
+            #                   momentum=0.9)
+            # else:
+            #     return O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
+            #                   {'params': model.module.classifier_parameters(), 'lr': 1e-4}],
+            #                   momentum=0.9)
+
         train(
-            init_optimizer=lambda lr: O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
-                                             {'params': model.module.classifier_parameters(), 'lr': 1e-6}],
-                                              momentum=0.9),
+            init_optimizer=optimizer_schedule,
             lr=args.lr,
             **train_kwargs)
     elif args.mode in ['valid', 'predict_valid', 'predict_test']:

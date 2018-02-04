@@ -111,7 +111,7 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
                 (batch_size * loss).backward()
                 optimizer.step()
 
-                loss_avg.update(loss.data[0], input.size(0))
+                loss_avg.update(loss.data[0])
                 batch_time.update(time.time() - end)
                 end = time.time()
 

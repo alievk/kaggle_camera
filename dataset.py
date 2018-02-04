@@ -52,7 +52,7 @@ def opencv_loader(path):
 
 
 class CSVDataset(Dataset):
-    def __init__(self, csv_path, transform=None, class_aware=True, unique_samples=False,
+    def __init__(self, csv_path, args, transform=None, class_aware=True, unique_samples=False,
                  do_manip=False, manip_prob: float=0.5, repeats=1, loader: Callable=opencv_loader,
                  stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
@@ -71,6 +71,7 @@ class CSVDataset(Dataset):
             samples.append(item)
             class_samples[target].append(item)
 
+        self.input_size = args.input_size
         self.transform = transform
         self.do_manip = do_manip
         self.manip_prob = manip_prob
@@ -101,14 +102,15 @@ class CSVDataset(Dataset):
         self.stats['loader'].append(time() - load_s)
 
         manip = -1
-        if self.do_manip and np.random.rand() < self.manip_prob:
+        if 'manip' in item and item['manip'] == 1:
+            manip = aug.MANIPULATIONS.index('jpg70')
+        elif self.do_manip and np.random.rand() < self.manip_prob:
             manip_s = time()
             disable_manip = []
-            if 'manip' in item and item['manip'] == 1:
-                disable_manip = ['jpg70', 'jpg90']
+            if img.shape[0] // 2 < self.input_size or img.shape[1] // 2 < self.input_size:
+                disable_manip.append('bicubic0.5')
             img, manip_name = RandomManipulation()(img, disable_manip)
             self.stats['manip'].append(time() - manip_s)
-            manip = aug.MANIPULATIONS.index(manip_name)
 
         if self.transform:
             tform_s = time()

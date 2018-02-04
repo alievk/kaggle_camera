@@ -31,11 +31,10 @@ class CenterCrop:
 
     def __call__(self, img):
         h, w = img.shape[0], img.shape[1]
-        # w, h = img.size
-        th, tw = self.size
-        x1 = int(round((w - tw) / 2.))
-        y1 = int(round((h - th) / 2.))
-        return img[y1:y1 + th, x1:x1 + tw, :].astype(np.uint8)
+        ch, cw = self.size
+        x0 = (w - cw) // 2
+        y0 = (h - ch) // 2
+        return img[y0:y0+ch, x0:x0+cw, :].astype(np.uint8)
 
 
 class RandomCrop(object):
@@ -52,11 +51,11 @@ class RandomCrop(object):
 
     def __call__(self, img):
         h, w = img.shape[0], img.shape[1]
-        # w, h = img.size
-        th, tw = self.size
-        x1 = np.random.randint(0, w - tw - 1)
-        y1 = np.random.randint(0, h - th - 1)
-        return img[y1:y1 + th, x1:x1 + tw, :].astype(np.int64)
+        ch, cw = self.size
+        x0 = np.random.randint(0, w - cw + 1)
+        y0 = np.random.randint(0, h - ch + 1)
+        #print(h,w,y1-y0,x1-x0)
+        return img[y0:y0+ch, x0:x0+cw, :].astype(np.uint8)
 
 
 def rotate_90n_cw(src, angle):

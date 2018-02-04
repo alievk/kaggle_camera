@@ -293,11 +293,11 @@ def main():
     ])
 
     train_dataset = D.ConcatDataset([
-        dataset.CSVDataset(dataset.TRAINVAL_SET, transform=train_valid_transform,
+        dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=train_valid_transform,
                            do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
-        dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, transform=train_valid_transform,
+        dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=train_valid_transform,
                            do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
-    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, transform=train_valid_transform,
+    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=train_valid_transform,
                                        do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset(transform=test_transform)
 
@@ -311,9 +311,8 @@ def main():
     )
     test_loader = D.DataLoader(test_dataset, batch_size=args.batch_size, num_workers=args.workers)
 
-    model = models.resnet50(num_classes=dataset.NUM_CLASSES, pretrained=True)
-    #model = models.SqueezeNet(num_classes=dataset.NUM_CLASSES, pretrained=True)
-    model.cuda()
+    model = models.densenet121(num_classes=dataset.NUM_CLASSES, pretrained=True)
+    model = N.DataParallel(model).cuda()
 
     loss = N.CrossEntropyLoss()
 
@@ -338,8 +337,8 @@ def main():
         #     n_epochs=1,
         #     **train_kwargs)
         train(
-            init_optimizer=lambda lr: O.SGD([{'params': model.feature_parameters(), 'lr': lr},
-                                             {'params': model.classifier_parameters(), 'lr': 1e-6}],
+            init_optimizer=lambda lr: O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
+                                             {'params': model.module.classifier_parameters(), 'lr': 1e-6}],
                                               momentum=0.9),
             lr=args.lr,
             **train_kwargs)

@@ -209,6 +209,10 @@ def predict_valid(loader: D.DataLoader, model: N.Module):
     return preds, targets, manips
 
 
+def entropy(x):
+    return np.sum(-x * np.log(x - x.min(axis=1, keepdims=True) + 1e-12), axis=1)
+
+
 def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
     model.eval()
     preds = []
@@ -229,8 +233,10 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
             batch_pred = batch_pred.data.cpu().numpy()
             for i in range(batch_input.size(0) // num_aug):
                 j = i * num_aug
-                pred_avg = batch_pred[j:j+num_aug, :].mean(axis=0)
-                preds.append(pred_avg)
+                subbatch = batch_pred[j:j+num_aug, :]
+                #pred_tta = batch_pred[j:j+num_aug, :].mean(axis=0)
+                pred_tta = subbatch[np.argmin(entropy(subbatch)), :]
+                preds.append(pred_tta)
         else:
             batch_input_var = Variable(batch_input, volatile=True).cuda()
             batch_pred = model(batch_input_var)

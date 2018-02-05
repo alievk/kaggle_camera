@@ -23,6 +23,7 @@ import torchvision.transforms as transforms
 import dataset
 import models
 import utils
+import augmentations as aug
 from augmentations import Sometimes, CenterCrop, RandomCrop, RandomRotation
 
 
@@ -154,7 +155,8 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
         except KeyboardInterrupt:
             print('Ctrl+C, saving snapshot')
             save_checkpoint(epoch)
-            break
+            log.close()
+            raise KeyboardInterrupt
     log.close()
     print('Done.')
 
@@ -207,14 +209,33 @@ def predict_valid(loader: D.DataLoader, model: N.Module):
     return preds, targets, manips
 
 
-def predict_test(loader: D.DataLoader, model: N.Module):
+def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
     model.eval()
     preds = []
     img_paths = []
     for batch_input, batch_img_paths in loader:
-        batch_input_var = Variable(batch_input, volatile=True).cuda()
-        batch_pred = model(batch_input_var)
-        preds.extend(list(batch_pred.data.cpu().numpy()))
+        if tta:
+            # TTA: 4 rotations
+            batch_input_rot = []
+            for b_img in batch_input:
+                for rot in [0, 1, 2, 3]:
+                    batch_input_rot.append(np.rot90(b_img, rot, (1, 2)).copy())
+            batch_input = torch.stack([torch.from_numpy(b) for b in batch_input_rot], 0)
+
+            batch_input_var = Variable(batch_input, volatile=True).cuda()
+            batch_pred = model(batch_input_var)
+
+            num_aug = 4
+            batch_pred = batch_pred.data.cpu().numpy()
+            for i in range(batch_input.size(0) // num_aug):
+                j = i * num_aug
+                pred_avg = batch_pred[j:j+num_aug, :].mean(axis=0)
+                preds.append(pred_avg)
+        else:
+            batch_input_var = Variable(batch_input, volatile=True).cuda()
+            batch_pred = model(batch_input_var)
+            preds.extend(list(batch_pred.data.cpu().numpy()))
+
         img_paths.extend(list(batch_img_paths))
 
     return preds, img_paths
@@ -251,17 +272,17 @@ def save_test_predictions(preds, paths, args):
 def add_arguments(parser: argparse.ArgumentParser):
     arg = parser.add_argument
     arg('--mode', choices=['train', 'valid', 'predict_valid', 'predict_test'], default='train')
-    arg('-i', '--input-size', default=224, type=int, metavar='N', help='input size of the network')
+    arg('-i', '--input-size', default=256, type=int, metavar='N', help='input size of the network')
     arg('-b', '--batch-size', default=32, type=int, metavar='N', help='mini-batch size')
     arg('--lr', '--learning-rate', default=0.0001, type=float, metavar='LR', help='initial learning rate')
-    arg('--lr-warm', default=0.0001, type=float, metavar='LR', help='warm-up learning rate')
-    arg('--lr-max-changes', default=3, type=int, metavar='N', help='maximum number of LR changes')
+    #arg('--lr-warm', default=0.0001, type=float, metavar='LR', help='warm-up learning rate')
+    arg('--lr-max-changes', default=2, type=int, metavar='N', help='maximum number of LR changes')
     arg('-r', '--run-dir', required=True, metavar='DIR', help='directory with model checkpoints, logs, etc.')
     arg('--clean', action='store_true', help='clean the output directory')
     arg('--patience', default=4, type=int, metavar='N',
         help='number of epochs without validation loss improvement to tolerate')
     arg('--epochs', default=100, type=int, metavar='N', help='number of training epochs')
-    arg('--checkpoint', choices=['best', 'last'], default='last',
+    arg('--checkpoint', choices=['best', 'last'], default='best',
         help='whether to use the best or the last model checkpoint for inference')
     arg('--best-checkpoint-metric', choices=['valid_loss', 'score'], default='score',
         help='which metric to track when saving the best model checkpoint')
@@ -269,6 +290,7 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('-j', '--workers', default=8, type=int, metavar='N', help='number of data loading workers')
     arg('--snapshot', default='', type=str, metavar='PATH',
         help='use model snapshot to continue learning')
+    arg('--tta', action='store_true', help='do test-time augmentations')
 
 
 def main():
@@ -279,36 +301,50 @@ def main():
 
     assert torch.cuda.is_available(), 'CUDA is not available'
 
-    train_valid_transform = transforms.Compose([
-        Sometimes(RandomCrop(args.input_size), CenterCrop(args.input_size), 1.0),
-        RandomRotation(),
+    train_valid_transform_1 = transforms.Compose([
+        RandomCrop(args.input_size),
+        RandomRotation(),  # x4
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
+
+    train_valid_transform_2 = transforms.Compose([
+        CenterCrop(args.input_size),
+        RandomRotation(),  # x4
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    def init_loaders(transform):
+        # do_manip gives x8 samples
+        train_dataset = D.ConcatDataset([
+            dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=transform,
+                               do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
+            dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=transform,
+                               do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
+        valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
+                                           do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
+
+        train_loader = D.DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=True,
+            num_workers=args.workers, pin_memory=True
+        )
+        valid_loader = D.DataLoader(
+            valid_dataset, batch_size=args.batch_size, shuffle=False,
+            num_workers=args.workers, pin_memory=True
+        )
+
+        return train_loader, valid_loader
+
+    train_loader_1, valid_loader_1 = init_loaders(train_valid_transform_1)
+    train_loader_2, valid_loader_2 = init_loaders(train_valid_transform_2)
 
     test_transform = transforms.Compose([
         CenterCrop(args.input_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-
-    train_dataset = D.ConcatDataset([
-        dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=train_valid_transform,
-                           do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
-        dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=train_valid_transform,
-                           do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
-    valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=train_valid_transform,
-                                       do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
     test_dataset = dataset.TestDataset(transform=test_transform)
-
-    train_loader = D.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers, pin_memory=True
-    )
-    valid_loader = D.DataLoader(
-        valid_dataset, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True
-    )
     test_loader = D.DataLoader(test_dataset, batch_size=args.batch_size, num_workers=args.workers)
 
     model = models.densenet121(num_classes=dataset.NUM_CLASSES, pretrained=True)
@@ -323,15 +359,8 @@ def main():
         run_dir.joinpath('params.json').write_text(
             json.dumps(vars(args), indent=True, sort_keys=True))
         subprocess.check_call("git diff $(find . -name '*.py') > {}".format(run_dir / 'patch'), shell=True)
-        train_kwargs = {
-            'args': args,
-            'train_loader': train_loader,
-            'valid_loader': valid_loader,
-            'model': model,
-            'criterion': loss,
-        }
 
-        def optimizer_schedule(lr, lr_changes):
+        def init_optimizer(lr, lr_changes):
             return O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
                           {'params': model.module.classifier_parameters(), 'lr': 1e-6}], momentum=0.9)
             # if lr_changes == 0:
@@ -343,9 +372,27 @@ def main():
             #                   {'params': model.module.classifier_parameters(), 'lr': 1e-4}],
             #                   momentum=0.9)
 
+        train_kwargs = {
+            'args': args,
+            'model': model,
+            'criterion': loss,
+        }
+
+        # Train on random crops on full image
         train(
-            init_optimizer=optimizer_schedule,
+            init_optimizer=init_optimizer,
             lr=args.lr,
+            train_loader=train_loader_1,
+            valid_loader=valid_loader_1,
+            n_epochs=20,
+            **train_kwargs)
+
+        # Train on central crops
+        train(
+            init_optimizer=init_optimizer,
+            lr=args.lr,
+            train_loader=train_loader_2,
+            valid_loader=valid_loader_2,
             **train_kwargs)
     elif args.mode in ['valid', 'predict_valid', 'predict_test']:
         if 'best' == args.checkpoint:
@@ -356,12 +403,12 @@ def main():
         model.load_state_dict(state['model'])
         print('Loaded {}'.format(ckpt))
         if 'valid' == args.mode:
-            validation(tqdm.tqdm(valid_loader, desc='Validation'), model, loss)
+            validation(tqdm.tqdm(valid_loader_2, desc='Validation'), model, loss)
         elif 'predict_valid' == args.mode:
-            preds, targets, manips = predict_valid(valid_loader, model)
+            preds, targets, manips = predict_valid(valid_loader_2, model)
             save_valid_predictions(preds, targets, manips, args)
         elif 'predict_test' == args.mode:
-            preds, paths = predict_test(test_loader, model)
+            preds, paths = predict_test(test_loader, model, args.tta)
             save_test_predictions(preds, paths, args)
     else:
         raise ValueError('Unknown mode {}'.format(args.mode))

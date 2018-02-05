@@ -22,9 +22,11 @@ VALID_SET = SETS_ROOT / 'valid.csv'
 TRAINVAL_SET = SETS_ROOT / 'trainval.csv'
 FLICKR_TRAIN_SET = SETS_ROOT / 'flickr_train.csv'
 FLICKR_VALID_SET = SETS_ROOT / 'flickr_valid.csv'
+REVIEWS_SET = SETS_ROOT / 'reviews.csv'
 TRAINVAL_DIR = DATA_ROOT / 'train'
 TEST_DIR = DATA_ROOT / 'test'
 FLICKR_DIR = DATA_ROOT / 'external/flickr_images'
+REVIEWS_DIR = DATA_ROOT / 'external/reviews_images'
 
 CLASSES = ['HTC-1-M7', 'LG-Nexus-5x', 'Motorola-Droid-Maxx', 'Motorola-Nexus-6', 'Motorola-X',
            'Samsung-Galaxy-Note3', 'Samsung-Galaxy-S4', 'Sony-NEX-7', 'iPhone-4s', 'iPhone-6']
@@ -57,14 +59,19 @@ class CSVDataset(Dataset):
                  stats_fq: int=0, fix_path: Callable=None):
         df = pd.read_csv(csv_path)
         paths = df['fname']
-        is_flickr = 'flickr' in Path(csv_path).stem
+        is_external = 'flickr' in Path(csv_path).stem or 'reviews' in Path(csv_path).stem
         has_manip = 'manip' in df.columns
         samples = []
         class_samples = defaultdict(list)
         for i, path in enumerate(paths):
-            full_path = Path(TRAINVAL_DIR / path) if not is_flickr else Path(FLICKR_DIR) / path
+            if 'flickr' in Path(csv_path).stem:
+                full_path = Path(FLICKR_DIR) / path
+            elif 'reviews' in Path(csv_path).stem:
+                full_path = Path(REVIEWS_DIR) / path
+            else:
+                full_path = Path(TRAINVAL_DIR / path)
             model = Path(path).parts[0]
-            target = CLASS_TO_IDX[model] if not is_flickr else CLASS_TO_IDX[FLICKR_NAME_MAP[model]]
+            target = CLASS_TO_IDX[model] if not is_external else CLASS_TO_IDX[FLICKR_NAME_MAP[model]]
             item = {'path': str(full_path), 'target': target}
             if has_manip:
                 item['manip'] = df.iloc[i]['manip']

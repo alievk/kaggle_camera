@@ -327,6 +327,8 @@ def main():
             dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
             dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=transform,
+                               do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
+            dataset.CSVDataset(dataset.REVIEWS_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
         valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
                                            do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
@@ -390,16 +392,16 @@ def main():
             lr=args.lr,
             train_loader=train_loader_1,
             valid_loader=valid_loader_1,
-            n_epochs=20,
+            # n_epochs=20,
             **train_kwargs)
 
         # Train on central crops
-        train(
-            init_optimizer=init_optimizer,
-            lr=args.lr,
-            train_loader=train_loader_2,
-            valid_loader=valid_loader_2,
-            **train_kwargs)
+        # train(
+        #     init_optimizer=init_optimizer,
+        #     lr=args.lr,
+        #     train_loader=train_loader_2,
+        #     valid_loader=valid_loader_2,
+        #     **train_kwargs)
     elif args.mode in ['valid', 'predict_valid', 'predict_test']:
         if 'best' == args.checkpoint:
             ckpt = (run_dir / 'best-model.pt')
@@ -409,7 +411,7 @@ def main():
         model.load_state_dict(state['model'])
         print('Loaded {}'.format(ckpt))
         if 'valid' == args.mode:
-            validation(tqdm.tqdm(valid_loader_2, desc='Validation'), model, loss)
+            validation(tqdm.tqdm(valid_loader_1, desc='Validation'), model, loss)
         elif 'predict_valid' == args.mode:
             preds, targets, manips = predict_valid(valid_loader_2, model)
             save_valid_predictions(preds, targets, manips, args)

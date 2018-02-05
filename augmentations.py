@@ -50,10 +50,11 @@ class RandomCrop(object):
             self.size = size
 
     def __call__(self, img):
-        h, w = img.shape[0], img.shape[1]
+        h, w = img.shape[:2]
         ch, cw = self.size
-        x0 = np.random.randint(0, w - cw + 1)
-        y0 = np.random.randint(0, h - ch + 1)
+        # try to catch the CFA pattern, which is 2x2
+        x0 = (np.random.randint(0, w - cw + 1) // 2) * 2
+        y0 = (np.random.randint(0, h - ch + 1) // 2) * 2
         #print(h,w,y1-y0,x1-x0)
         return img[y0:y0+ch, x0:x0+cw, :].astype(np.uint8)
 

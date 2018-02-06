@@ -304,7 +304,7 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('--snapshot', default='', type=str, metavar='PATH',
         help='use model snapshot to continue learning')
     arg('--tta', action='store_true', help='do test-time augmentations')
-    arg('--model', choices=['densenet121', 'densenet169'], default='densenet121')
+    arg('--model', choices=['densenet121', 'densenet169', 'resnet101', 'resnet50'], default='densenet121')
 
 
 def main():

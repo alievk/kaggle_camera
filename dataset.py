@@ -117,6 +117,7 @@ class CSVDataset(Dataset):
             if img.shape[0] // 2 < self.input_size or img.shape[1] // 2 < self.input_size:
                 disable_manip.append('bicubic0.5')
             img, manip_name = RandomManipulation()(img, disable_manip)
+            manip = aug.MANIPULATIONS.index(manip_name)
             self.stats['manip'].append(time() - manip_s)
 
         if self.transform:

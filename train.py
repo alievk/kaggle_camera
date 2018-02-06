@@ -101,9 +101,11 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
                 if i > 0:  # first iteration is always slow
                     data_time.update(time.time() - end)
 
-                input = Variable(input).cuda(async=True)
-                target = Variable(target).cuda(async=True)
+                input = Variable(input.float().cuda(async=True), volatile=False)
+                target = Variable(target.cuda(async=True), volatile=False)
+                manip = Variable((manip != -1).float().cuda(async=True), volatile=False)
 
+                #output = model(input, manip)  # type: Variable
                 output = model(input)  # type: Variable
                 loss = criterion(output, target)
 
@@ -322,16 +324,17 @@ def main():
     ])
 
     def init_loaders(transform):
+        fix_path = None  # utils.fix_jpg_tif
         # do_manip gives x8 samples
         train_dataset = D.ConcatDataset([
             dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=transform,
-                               do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
+                               do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=transform,
-                               do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif),
+                               do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.REVIEWS_SET, args, transform=transform,
-                               do_manip=True, repeats=1, fix_path=utils.fix_jpg_tif)])
+                               do_manip=True, repeats=1, fix_path=fix_path)])
         valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
-                                           do_manip=True, repeats=4, fix_path=utils.fix_jpg_tif)
+                                           do_manip=True, repeats=4, fix_path=fix_path)
 
         train_loader = D.DataLoader(
             train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -369,8 +372,9 @@ def main():
         subprocess.check_call("git diff $(find . -name '*.py') > {}".format(run_dir / 'patch'), shell=True)
 
         def init_optimizer(lr, lr_changes):
-            return O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
-                          {'params': model.module.classifier_parameters(), 'lr': 1e-6}], momentum=0.9)
+            return O.Adam(model.parameters(), lr=lr)
+            # return O.SGD([{'params': model.feature_parameters(), 'lr': lr},
+            #               {'params': model.classifier_parameters(), 'lr': 1e-6}], momentum=0.9)
             # if lr_changes == 0:
             #     return O.SGD([{'params': model.module.feature_parameters(), 'lr': lr},
             #                   {'params': model.module.classifier_parameters(), 'lr': 1e-6}],

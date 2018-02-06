@@ -157,35 +157,23 @@ class DenseNet(nn.Module):
         # Linear layer
         self.classifier = nn.Linear(num_features, num_classes)
 
-    def forward(self, x):
-        out = self.features(x)
-        out = F.relu(out, inplace=True)
+    def forward(self, x, O):
+        features = self.features(x)
+        out = F.relu(features, inplace=True)
         out = F.avg_pool2d(out, (out.size(2), out.size(3)))
         out = out.view(out.size(0), -1)
+        out = torch.cat([out, O.view(-1, 1)], 1)
         out = self.classifier(out)
         return out
-    # def forward(self, x, O):
-    #     print(x.shape)
-    #     #out = torch.transpose(x, 1, 3) #0, 3, 2, 1
-    #     #out = torch.transpose(out, 2, 3) #0, 3, 1, 2
-        # features = self.features(x)
-        # out = F.relu(features, inplace=True)
-        # out = F.avg_pool2d(out, (out.size(2), out.size(3)))
-        # out = out.view(out.size(0), -1)
-        # out = torch.cat([out, O], -1)
-        # print(out)
-        # out = self.classifier(out)
-        # return out
 
     def set_num_classes(self, num_classes):
         self.classifier = nn.Sequential(
-            nn.Linear(self.classifier.in_features, 512),
+            nn.Linear(self.classifier.in_features+1, 512),
             nn.Dropout(0.3),
             nn.Linear(512, 128),
             nn.Dropout(0.3),
             nn.Linear(128, num_classes)
         )
-        # self.classifier = nn.Linear(self.classifier.in_features + 1, num_classes)
 
     def feature_parameters(self):
         return self.features.parameters()

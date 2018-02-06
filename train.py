@@ -103,10 +103,9 @@ def train(init_optimizer, lr, n_epochs=None, lr_decay=0.2, **kwargs):
 
                 input = Variable(input.float().cuda(async=True), volatile=False)
                 target = Variable(target.cuda(async=True), volatile=False)
-                manip = Variable((manip != -1).float().cuda(async=True), volatile=False)
+                is_manip = Variable((manip != -1).float().cuda(async=True), volatile=False)
 
-                #output = model(input, manip)  # type: Variable
-                output = model(input)  # type: Variable
+                output = model(input, is_manip)  # type: Variable
                 loss = criterion(output, target)
 
                 optimizer.zero_grad()
@@ -172,8 +171,9 @@ def validation(loader: D.DataLoader, model: N.Module, criterion):
     for input, target, manip in loader:
         input_var = Variable(input, volatile=True).cuda()
         target_var = Variable(target).cuda()
+        is_manip = Variable((manip != -1).float().cuda())
 
-        output = model(input_var)
+        output = model(input_var, is_manip)
         loss = criterion(output, target_var)
         losses.append(loss.data[0])
 
@@ -203,7 +203,8 @@ def predict_valid(loader: D.DataLoader, model: N.Module):
     manips = []
     for batch_input, batch_targets, batch_manip in loader:
         batch_input_var = Variable(batch_input, volatile=True).cuda()
-        batch_pred = model(batch_input_var)
+        is_manip = Variable((batch_manip != -1).float().cuda())
+        batch_pred = model(batch_input_var, is_manip)
         preds.extend(list(batch_pred.data.cpu().numpy()))
         targets.extend(list(batch_targets))
         manips.extend(list(batch_manip))
@@ -220,16 +221,19 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
     preds = []
     img_paths = []
     for batch_input, batch_img_paths in loader:
+        batch_is_manip = ['manip' in p for p in batch_img_paths]
         if tta:
             # TTA: 4 rotations
             batch_input_rot = []
-            for b_img in batch_input:
+            for i, b_img in enumerate(batch_input):
                 for rot in [0, 1, 2, 3]:
                     batch_input_rot.append(np.rot90(b_img, rot, (1, 2)).copy())
             batch_input = torch.stack([torch.from_numpy(b) for b in batch_input_rot], 0)
+            batch_is_manip = np.repeat(batch_is_manip, 4)
 
             batch_input_var = Variable(batch_input, volatile=True).cuda()
-            batch_pred = model(batch_input_var)
+            batch_is_manip = Variable(torch.FloatTensor(batch_is_manip)).cuda()
+            batch_pred = model(batch_input_var, batch_is_manip)
 
             num_aug = 4
             batch_pred = batch_pred.data.cpu().numpy()
@@ -241,7 +245,8 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
                 preds.append(pred_tta)
         else:
             batch_input_var = Variable(batch_input, volatile=True).cuda()
-            batch_pred = model(batch_input_var)
+            batch_is_manip = Variable(torch.FloatTensor(batch_is_manip)).cuda()
+            batch_pred = model(batch_input_var, batch_is_manip)
             preds.extend(list(batch_pred.data.cpu().numpy()))
 
         img_paths.extend(list(batch_img_paths))
@@ -332,7 +337,8 @@ def main():
             dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.REVIEWS_SET, args, transform=transform,
-                               do_manip=True, repeats=1, fix_path=fix_path)])
+                               do_manip=True, repeats=1, fix_path=fix_path)
+        ])
         valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
                                            do_manip=True, repeats=4, fix_path=fix_path)
 

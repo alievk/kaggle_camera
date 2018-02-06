@@ -304,6 +304,7 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('--snapshot', default='', type=str, metavar='PATH',
         help='use model snapshot to continue learning')
     arg('--tta', action='store_true', help='do test-time augmentations')
+    arg('--model', choices=['densenet121', 'densenet169'], default='densenet121')
 
 
 def main():
@@ -329,7 +330,7 @@ def main():
     ])
 
     def init_loaders(transform):
-        fix_path = None  # utils.fix_jpg_tif
+        fix_path = utils.fix_jpg_tif
         # do_manip gives x8 samples
         train_dataset = D.ConcatDataset([
             dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=transform,
@@ -340,7 +341,7 @@ def main():
                                do_manip=True, repeats=1, fix_path=fix_path)
         ])
         valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
-                                           do_manip=True, repeats=4, fix_path=fix_path)
+                                           do_manip=True, repeats=2, fix_path=fix_path)
 
         train_loader = D.DataLoader(
             train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -364,7 +365,7 @@ def main():
     test_dataset = dataset.TestDataset(transform=test_transform)
     test_loader = D.DataLoader(test_dataset, batch_size=args.batch_size, num_workers=args.workers)
 
-    model = models.densenet121(num_classes=dataset.NUM_CLASSES, pretrained=True)
+    model = getattr(models, args.model)(num_classes=dataset.NUM_CLASSES, pretrained=True)
     model = N.DataParallel(model).cuda()
 
     loss = N.CrossEntropyLoss()

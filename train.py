@@ -322,12 +322,12 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_valid_transform_2 = transforms.Compose([
-        CenterCrop(args.input_size),
-        RandomRotation(),  # x4
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    # train_valid_transform_2 = transforms.Compose([
+    #     CenterCrop(args.input_size),
+    #     RandomRotation(),  # x4
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    # ])
 
     def init_loaders(transform):
         fix_path = utils.fix_jpg_tif
@@ -336,12 +336,14 @@ def main():
             dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=transform,
-                               do_manip=True, repeats=1, fix_path=fix_path),
+                               do_manip=True, repeats=1, fix_path=fix_path)
+        ])
+        valid_dataset = D.ConcatDataset([
+            dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
+                                           do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.REVIEWS_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=fix_path)
         ])
-        valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
-                                           do_manip=True, repeats=2, fix_path=fix_path)
 
         train_loader = D.DataLoader(
             train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -355,7 +357,7 @@ def main():
         return train_loader, valid_loader
 
     train_loader_1, valid_loader_1 = init_loaders(train_valid_transform_1)
-    train_loader_2, valid_loader_2 = init_loaders(train_valid_transform_2)
+    # train_loader_2, valid_loader_2 = init_loaders(train_valid_transform_2)
 
     test_transform = transforms.Compose([
         CenterCrop(args.input_size),

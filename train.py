@@ -13,6 +13,8 @@ import tqdm
 import pickle
 import pandas as pd
 
+from scipy.stats import entropy
+
 import torch
 import torch.nn as N
 import torch.optim as O
@@ -212,8 +214,8 @@ def predict_valid(loader: D.DataLoader, model: N.Module):
     return preds, targets, manips
 
 
-def entropy(x):
-    return np.sum(-x * np.log(x - x.min(axis=1, keepdims=True) + 1e-12), axis=1)
+# def entropy(x):
+#     return np.sum(-x * np.log(x - x.min(axis=1, keepdims=True) + 1e-12), axis=1)
 
 
 def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
@@ -229,7 +231,7 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
                 for rot in [0, 1, 2, 3]:
                     batch_input_rot.append(np.rot90(b_img, rot, (1, 2)).copy())
             batch_input = torch.stack([torch.from_numpy(b) for b in batch_input_rot], 0)
-            batch_is_manip = np.repeat(batch_is_manip, 4)
+            batch_is_manip = np.repeat(batch_is_manip, 4).astype(int)
 
             batch_input_var = Variable(batch_input, volatile=True).cuda()
             batch_is_manip = Variable(torch.FloatTensor(batch_is_manip)).cuda()
@@ -241,7 +243,7 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
                 j = i * num_aug
                 subbatch = batch_pred[j:j+num_aug, :]
                 #pred_tta = batch_pred[j:j+num_aug, :].mean(axis=0)
-                pred_tta = subbatch[np.argmin(entropy(subbatch)), :]
+                pred_tta = subbatch[np.argmin(entropy(subbatch.T)), :]
                 preds.append(pred_tta)
         else:
             batch_input_var = Variable(batch_input, volatile=True).cuda()
@@ -276,8 +278,9 @@ def save_test_predictions(preds, paths, args):
     out_dir = Path('output') / run_dir.relative_to('.')
     if not out_dir.exists():
         os.makedirs(str(out_dir))
-    csv_path = out_dir / (args.mode + '.csv')
-    infer_path = out_dir / (args.mode + '_detailed.pkl')
+    csv_path = out_dir / (args.mode + '_' + args.checkpoint + ('_tta' if args.tta else '') + '.csv')
+    infer_path = out_dir / (args.mode + '_' + args.checkpoint + ('_tta' if args.tta else '')
+                            + '.pkl')
     pd.DataFrame({'fname': names, 'camera': preds_cls}, columns=['fname', 'camera']).to_csv(str(csv_path), index=False)
     pickle.dump((preds, paths), open(str(infer_path), 'wb'))
 

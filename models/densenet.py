@@ -132,7 +132,7 @@ class DenseNet(nn.Module):
         super(DenseNet, self).__init__()
 
         # First convolution
-        self.features = nn.Sequential(OrderedDict([
+         self.features = nn.Sequential(OrderedDict([
             ('conv0', nn.Conv2d(3, num_init_features, kernel_size=7, stride=2, padding=3, bias=False)),
             ('norm0', nn.BatchNorm2d(num_init_features)),
             ('relu0', nn.ReLU(inplace=True)),
@@ -162,7 +162,7 @@ class DenseNet(nn.Module):
         out = F.relu(features, inplace=True)
         out = F.avg_pool2d(out, (out.size(2), out.size(3)))
         out = out.view(out.size(0), -1)
-        out = torch.cat([out, O.view(-1, 1)], 1)
+        out = torch.cat([out, O], -1)
         out = self.classifier(out)
         return out
 

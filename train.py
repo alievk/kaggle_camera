@@ -13,6 +13,8 @@ import tqdm
 import pickle
 import pandas as pd
 
+from scipy.stats import entropy
+
 import torch
 import torch.nn as N
 import torch.optim as O
@@ -212,8 +214,8 @@ def predict_valid(loader: D.DataLoader, model: N.Module):
     return preds, targets, manips
 
 
-def entropy(x):
-    return np.sum(-x * np.log(x - x.min(axis=1, keepdims=True) + 1e-12), axis=1)
+# def entropy(x):
+#     return np.sum(-x * np.log(x - x.min(axis=1, keepdims=True) + 1e-12), axis=1)
 
 
 def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
@@ -229,7 +231,7 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
                 for rot in [0, 1, 2, 3]:
                     batch_input_rot.append(np.rot90(b_img, rot, (1, 2)).copy())
             batch_input = torch.stack([torch.from_numpy(b) for b in batch_input_rot], 0)
-            batch_is_manip = np.repeat(batch_is_manip, 4)
+            batch_is_manip = np.repeat(batch_is_manip, 4).astype(int)
 
             batch_input_var = Variable(batch_input, volatile=True).cuda()
             batch_is_manip = Variable(torch.FloatTensor(batch_is_manip)).cuda()
@@ -241,7 +243,7 @@ def predict_test(loader: D.DataLoader, model: N.Module, tta: bool=False):
                 j = i * num_aug
                 subbatch = batch_pred[j:j+num_aug, :]
                 #pred_tta = batch_pred[j:j+num_aug, :].mean(axis=0)
-                pred_tta = subbatch[np.argmin(entropy(subbatch)), :]
+                pred_tta = subbatch[np.argmin(entropy(subbatch.T)), :]
                 preds.append(pred_tta)
         else:
             batch_input_var = Variable(batch_input, volatile=True).cuda()
@@ -276,8 +278,9 @@ def save_test_predictions(preds, paths, args):
     out_dir = Path('output') / run_dir.relative_to('.')
     if not out_dir.exists():
         os.makedirs(str(out_dir))
-    csv_path = out_dir / (args.mode + '.csv')
-    infer_path = out_dir / (args.mode + '_detailed.pkl')
+    csv_path = out_dir / (args.mode + '_' + args.checkpoint + ('_tta' if args.tta else '') + '.csv')
+    infer_path = out_dir / (args.mode + '_' + args.checkpoint + ('_tta' if args.tta else '')
+                            + '.pkl')
     pd.DataFrame({'fname': names, 'camera': preds_cls}, columns=['fname', 'camera']).to_csv(str(csv_path), index=False)
     pickle.dump((preds, paths), open(str(infer_path), 'wb'))
 
@@ -304,6 +307,7 @@ def add_arguments(parser: argparse.ArgumentParser):
     arg('--snapshot', default='', type=str, metavar='PATH',
         help='use model snapshot to continue learning')
     arg('--tta', action='store_true', help='do test-time augmentations')
+    arg('--model', choices=['densenet121', 'densenet169', 'resnet101', 'resnet50'], default='densenet121')
 
 
 def main():
@@ -321,26 +325,28 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_valid_transform_2 = transforms.Compose([
-        CenterCrop(args.input_size),
-        RandomRotation(),  # x4
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    # train_valid_transform_2 = transforms.Compose([
+    #     CenterCrop(args.input_size),
+    #     RandomRotation(),  # x4
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    # ])
 
     def init_loaders(transform):
-        fix_path = None  # utils.fix_jpg_tif
+        fix_path = utils.fix_jpg_tif
         # do_manip gives x8 samples
         train_dataset = D.ConcatDataset([
             dataset.CSVDataset(dataset.TRAINVAL_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.FLICKR_TRAIN_SET, args, transform=transform,
-                               do_manip=True, repeats=1, fix_path=fix_path),
+                               do_manip=True, repeats=1, fix_path=fix_path)
+        ])
+        valid_dataset = D.ConcatDataset([
+            dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
+                                           do_manip=True, repeats=1, fix_path=fix_path),
             dataset.CSVDataset(dataset.REVIEWS_SET, args, transform=transform,
                                do_manip=True, repeats=1, fix_path=fix_path)
         ])
-        valid_dataset = dataset.CSVDataset(dataset.FLICKR_VALID_SET, args, transform=transform,
-                                           do_manip=True, repeats=4, fix_path=fix_path)
 
         train_loader = D.DataLoader(
             train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -354,7 +360,7 @@ def main():
         return train_loader, valid_loader
 
     train_loader_1, valid_loader_1 = init_loaders(train_valid_transform_1)
-    train_loader_2, valid_loader_2 = init_loaders(train_valid_transform_2)
+    # train_loader_2, valid_loader_2 = init_loaders(train_valid_transform_2)
 
     test_transform = transforms.Compose([
         CenterCrop(args.input_size),
@@ -364,7 +370,7 @@ def main():
     test_dataset = dataset.TestDataset(transform=test_transform)
     test_loader = D.DataLoader(test_dataset, batch_size=args.batch_size, num_workers=args.workers)
 
-    model = models.densenet121(num_classes=dataset.NUM_CLASSES, pretrained=True)
+    model = getattr(models, args.model)(num_classes=dataset.NUM_CLASSES, pretrained=True)
     model = N.DataParallel(model).cuda()
 
     loss = N.CrossEntropyLoss()

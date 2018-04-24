@@ -22,10 +22,12 @@ VALID_SET = SETS_ROOT / 'valid.csv'
 TRAINVAL_SET = SETS_ROOT / 'trainval.csv'
 FLICKR_TRAIN_SET = SETS_ROOT / 'flickr_train.csv'
 FLICKR_VALID_SET = SETS_ROOT / 'flickr_valid.csv'
+FLICKR_NEW_SET = SETS_ROOT / 'flickr_new.csv'
 REVIEWS_SET = SETS_ROOT / 'reviews.csv'
 TRAINVAL_DIR = DATA_ROOT / 'train'
 TEST_DIR = DATA_ROOT / 'test'
 FLICKR_DIR = DATA_ROOT / 'external/flickr_images'
+FLICKR_NEW_DIR = DATA_ROOT / 'external/flickr_new_images'
 REVIEWS_DIR = DATA_ROOT / 'external/reviews_images'
 
 CLASSES = ['HTC-1-M7', 'LG-Nexus-5x', 'Motorola-Droid-Maxx', 'Motorola-Nexus-6', 'Motorola-X',
@@ -77,6 +79,10 @@ class CSVDataset(Dataset):
                 item['manip'] = df.iloc[i]['manip']
             samples.append(item)
             class_samples[target].append(item)
+        print('Summary of {}:'.format(csv_path))
+        for c in CLASSES:
+            print('{}: {}'.format(c, len(class_samples[CLASS_TO_IDX[c]])))
+        print()
 
         self.input_size = args.input_size
         self.transform = transform

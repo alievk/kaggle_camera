@@ -38,11 +38,11 @@ def densenet169(pretrained=False, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
     pass
-    # model = DenseNet(num_init_features=64, growth_rate=32, block_config=(6, 12, 32, 32),
-    #                  **kwargs)
-    # if pretrained:
-    #     model.load_state_dict(model_zoo.load_url(model_urls['densenet169']))
-    # return model
+    model = DenseNet(num_init_features=64, growth_rate=32, block_config=(6, 12, 32, 32))
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['densenet169']))
+    model.set_num_classes(kwargs['num_classes'])
+    return model
 
 
 def densenet201(pretrained=False, **kwargs):
@@ -52,12 +52,11 @@ def densenet201(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    pass
-    # model = DenseNet(num_init_features=64, growth_rate=32, block_config=(6, 12, 48, 32),
-    #                  **kwargs)
-    # if pretrained:
-    #     model.load_state_dict(model_zoo.load_url(model_urls['densenet201']))
-    # return model
+    model = DenseNet(num_init_features=64, growth_rate=32, block_config=(6, 12, 48, 32))
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['densenet201']))
+    model.set_num_classes(kwargs['num_classes'])
+    return model
 
 
 def densenet161(pretrained=False, **kwargs):

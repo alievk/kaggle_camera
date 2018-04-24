@@ -1,5 +1,6 @@
 import math
 
+import torch
 import torchvision.models as M
 import torch.nn.functional as F
 import torch.nn as N
@@ -110,9 +111,15 @@ class ResNet(N.Module):
         return N.Sequential(*layers)
 
     def set_number_of_classes(self, num_classes):
-        self.fc = N.Linear(self.fc.in_features, num_classes)
+        self.fc = N.Sequential(
+            N.Linear(self.fc.in_features+1, 512),
+            N.Dropout(0.3),
+            N.Linear(512, 128),
+            N.Dropout(0.3),
+            N.Linear(128, num_classes)
+        )
 
-    def forward(self, x):
+    def forward(self, x, O):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -125,6 +132,7 @@ class ResNet(N.Module):
 
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
+        x = torch.cat([x, O.view(-1, 1)], 1)
         x = self.fc(x)
 
         return x
@@ -148,5 +156,19 @@ def resnet50(pretrained=False, **kwargs):
     if pretrained:
         model.load_state_dict(
             model_zoo.load_url('https://download.pytorch.org/models/resnet50-19c8e357.pth'))
+    model.set_number_of_classes(kwargs['num_classes'])
+    return model
+
+
+def resnet101(pretrained=False, **kwargs):
+    """Constructs a ResNet-101 model.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet(Bottleneck, [3, 4, 23, 3])
+    if pretrained:
+        model.load_state_dict(
+            model_zoo.load_url('https://download.pytorch.org/models/resnet101-5d3b4d8f.pth'))
     model.set_number_of_classes(kwargs['num_classes'])
     return model
